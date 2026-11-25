@@ -3,6 +3,7 @@ package com.example.data
 import com.example.model.AnimationStyle
 import com.example.model.PromptTemplate
 import com.example.model.PronunciationEntry
+import kotlin.math.roundToInt
 
 object BuiltInPrompts {
 
@@ -42,7 +43,7 @@ Mga Panuntunan sa Kuwento:
         content = """
 Ikaw ay isang modernong Pinoy parable director na gumagawa ng maiikling pabula tungkol sa pera, disiplina, at diskarte sa buhay.
 Mga Panuntunan sa Kuwento:
-- Gumawa ng malinaw na contrast sa pagitan ng dalawang tauhan (hal. ang taong mayabang vs. ang taong tahimik na nag-iipon, o ang matalinong manok na mentor).
+- Gumawa ng malinaw na contrast sa pagitan ng dalawang tauhan (hal. ang taong mayabang vs. ang taong tahimik na nag-iipon, o ang praktikal na mentor).
 - Unang 3 segundo (Scene 1): Ipakita agad ang sitwasyong nakaka-relate ang karamihan sa pera o trabaho.
 - Bawat scene ay may malinaw na visual action at emosyon (pagkabigla, pagsisisi, tagumpay).
 - Tapusin sa isang maikling Tagalog proverb o wisdom line na tatatak sa manonood.
@@ -72,59 +73,82 @@ Mga Panuntunan sa Kuwento:
     fun getDefaultById(id: String): PromptTemplate? = DEFAULT_TEMPLATES.firstOrNull { it.id == id }
 
     fun lockedSchemaInstructions(durationSeconds: Int, style: AnimationStyle): String {
-        val sceneCount = when {
-            durationSeconds <= 35 -> 7
-            durationSeconds <= 65 -> 13
-            else -> 19
-        }
+        val sceneCount = (durationSeconds / 4.8).roundToInt().coerceIn(5, 22)
         val hudGuidance = when (style) {
-            AnimationStyle.TECH_EXPLAINER, AnimationStyle.CROSS_SECTION ->
-                "IMPORTANT FOR ${style.displayName}: Populate status_pill, callout_banner, and hud_widget (with hud_label, hud_from_value, hud_to_value, and checklist_items when using ANIMATED_CHECKLIST) on EVERY scene."
+            AnimationStyle.TECH_EXPLAINER ->
+                "IMPORTANT FOR ${style.displayName}: Populate status_pill, callout_banner, hud_widget (with hud_label, hud_from_value, hud_to_value, checklist_items), and topic-driven diagram_type on key scenes."
+            AnimationStyle.CROSS_SECTION ->
+                "IMPORTANT FOR ${style.displayName}: Write a vivid topic-specific cutaway_diagram_prompt (e.g., engine combustion chamber, house ventilation, root system, banking flow—100% matching the user's topic!), flow_direction, status_pill, callout_banner, and hud_widget on EVERY scene."
             AnimationStyle.VIRAL_2D_EXPLAINER ->
-                "IMPORTANT FOR ${style.displayName}: Populate expression, headgear (when fitting), metaphor_visual, and topic_pill (short 1-3 word uppercase badge like \"SCIENCE FACT\", \"BAKIT NANGYAYARI\", \"TIP #1\") on EVERY scene!"
+                "IMPORTANT FOR ${style.displayName}: Populate expression, headgear (when fitting), topic_pill (short 1–3 word uppercase badge derived strictly from the topic), and data-driven diagram_type (BEFORE_AFTER_SPLIT, STEP_FLOW_ARROWS, METER_GAUGE_SHIFT, SCALE_WEIGH_OFF, or SUNBURST_HERO_CALLOUT) or topic-matched metaphor_visual on EVERY scene!"
             AnimationStyle.PIXEL_CUTAWAY_EXPLAINER ->
-                "IMPORTANT FOR ${style.displayName}: Populate cutaway_stage (progressing sequentially from SURFACE_ZOOM_IN -> CROSS_SECTION_DAMAGE -> IMMUNE_CLEANUP -> STRAND_AND_VESSEL_REBUILD -> CELL_MIGRATION_CLOSE -> SURFACE_HEALED_ZOOM_OUT) and pointer_callouts (1–2 short uppercase labels with x in 35..235 and y in 115..335) on EVERY scene!"
+                "IMPORTANT FOR ${style.displayName}: Write a vivid topic-specific cutaway_diagram_prompt in 16-bit pixel art cutaway style, set flow_direction (UP, DOWN, LEFT_TO_RIGHT, RADIAL_BURST), and populate 1–2 topic-specific pointer_callouts (uppercase labels with x in 35..235 and y in 115..335) on EVERY scene! Only set cutaway_subject if the topic is actually about that biology/circuit subject; otherwise leave cutaway_diagram_prompt to drive the custom topic cutaway."
             else ->
-                "OPTIONAL MOTION-GRAPHICS OVERLAYS: You may also include the optional HUD fields below on key emphasis scenes."
+                "OPTIONAL MOTION-GRAPHICS & DIAGRAMS: Include diagram_type (left_label/right_label/step_1..3) and HUD fields whenever visual comparison or causal steps clarify the topic."
         }
         return """
-Return ONLY a valid JSON array containing exactly $sceneCount scene objects (each representing 3–5 seconds of narration for a ~${durationSeconds}s vertical 9:16 video in "${style.displayName}" style).
+Return ONLY a valid JSON array containing exactly $sceneCount scene objects (each representing 3–5 seconds of narration for a ~${durationSeconds}s vertical 9:16 video in "${style.displayName}" aesthetic).
 Do NOT output any prose, explanation, markdown fences, or <think> tags outside the JSON array.
+
+TOPIC-FIRST DECOUPLING CONTRACT (CRITICAL ARCHITECTURE RULE):
+- "${style.displayName}" defines ONLY the visual rendering aesthetic and camera feel—NEVER the story characters, props, or subject matter!
+- 100% of characters, settings, diagram labels, cutaway subjects, and visual metaphors MUST come dynamically from the user's topic or imported prompt.
+- FORBIDDEN GENERIC BIAS: NEVER insert unrelated skin wounds, "PROTEIN CHAIN", chicken mentors, or top-hat men unless the user's topic actually mentions skin wounds, protein, chickens, or wealthy top-hat tycoons.
 
 STRICT NATURAL TAGALOG LANGUAGE RULES (MANDATORY):
 - Write grammatically correct, everyday conversational Tagalog/Taglish that sounds like a real Filipino storyteller—never stiff or robotic Google Translate phrasing.
-- FORBIDDEN: Do NOT translate English idioms word-for-word (e.g., NEVER translate "don't put all your eggs in one basket" literally as "lobo", "manok", or "itlog sa isang basket"; express the actual Filipino meaning naturally, like "huwag umasa sa iisang kita lang").
-- Use proper Filipino grammar ("ng" vs "nang", "rito/dito", natural "po/naman/kasi/talaga/kaya" cadence) and keep every line clean, punchy, and 100% free of gibberish or stage directions.
+- FORBIDDEN: Do NOT translate English idioms word-for-word (e.g., NEVER translate "don't put all your eggs in one basket" literally; express the actual Filipino meaning naturally).
+- Use proper Filipino grammar ("ng" vs "nang", "rito/dito", natural "po/naman/kasi/talaga/kaya" cadence) and keep every line clean, punchy, and free of stage directions.
+
+ANTI-TEMPLATE VISUAL VARIETY RULES (MANDATORY):
+- Match "environment_theme" to the exact story setting and time of day—NEVER use midnight/dark rooms for bright daytime morning, kitchen, market, school, clinic, or office stories!
+- Vary "shot_framing", "character_pose", and "environment_theme" dynamically across scenes so consecutive shots feel fresh and cinematic.
+- Match character wardrobe & identity ("character_gender", "character_age", "character_outfit", "outfit_color_hex", "hair_color_hex", "hand_prop") to who is speaking in the topic (e.g. FEMALE + ELDERLY + MARKET_APRON + BASKET_GOODS for a tindera lola; YOUNG_ADULT + MEDICAL_SCRUBS for a nurse; CHILD + STUDENT_UNIFORM + BOOK_NOTEBOOK for a pupil).
 
 Every object in the JSON array MUST have ALL 7 required keys with exact names:
 - "scene_id": integer starting at 1
-- "tagalog_narration": string (natural conversational Tagalog/Taglish, 8 to 15 words, no stage directions or speaker labels)
-- "background_prompt": string (vivid English visual scene description matching "${style.displayName}", no text, no people)
+- "tagalog_narration": string (natural conversational Tagalog/Taglish, ~11 to 15 words per scene, no stage directions or speaker labels)
+- "background_prompt": string (vivid English visual scene description matching "${style.displayName}" aesthetic and time of day, no text, no people)
 - "camera_motion": strictly one of ["WHIP_PAN_LEFT", "WHIP_PAN_RIGHT", "ZOOM_IN", "ZOOM_OUT", "SHAKE", "STATIC"]
-- "actor_role": strictly one of ["NARRATOR", "RICH_MAN", "POOR_MAN", "CHICKEN_MENTOR", "HERO"]
+- "actor_role": strictly one of ["NARRATOR", "HERO", "RICH_MAN", "POOR_MAN", "CHICKEN_MENTOR"] (prefer "NARRATOR" or "HERO" paired with character_outfit/gender/age for everyday people!)
 - "actor_action": strictly one of ["WALK_IN", "TALK_BOUNCE", "THUMBS_UP", "POINT_STICK", "SURPRISED_JUMP", "CRY_SHAKE"]
-- "world_fx": strictly one of ["NONE", "COIN_RAIN", "FIRE_SPARKS", "GIANT_HAND_GRAB", "FLOATING_HOUSES", "CHALKBOARD_DRAW", "EGG_CRACK"]
+- "world_fx": strictly one of ["NONE", "COIN_RAIN", "FIRE_SPARKS", "CHALKBOARD_DRAW"]
 
 $hudGuidance
-Optional cinematic & motion-graphics keys per scene object:
+Optional cinematic, wardrobe, cutaway & data-driven diagram keys per scene object:
+- "environment_theme": one of ["BRIGHT_MORNING_KITCHEN", "SUNNY_MARKET_STREET", "MODERN_OFFICE_DESK", "COZY_BEDROOM_MIDNIGHT", "CLASSROOM_CHALKBOARD", "BANK_VAULT_FINANCE", "SUNNY_PARK_NATURE", "SCIENCE_LAB_INTERIOR", "HOSPITAL_CLINIC", "ABSTRACT_STUDIO_GRADIENT", "DRAMATIC_SUNSET_CITY"]
+- "character_gender": one of ["MALE", "FEMALE"]
+- "character_age": one of ["CHILD", "YOUNG_ADULT", "MIDDLE_AGED", "ELDERLY"]
+- "character_outfit": one of ["CASUAL_TSHIRT", "MARKET_APRON", "OFFICE_SUIT", "STUDENT_UNIFORM", "MEDICAL_SCRUBS", "HOODIE", "WORK_UNIFORM"]
+- "outfit_color_hex": vibrant hex string for shirt/outfit (e.g. "#E11D48", "#0EA5E9", "#16A34A")
+- "hair_color_hex": hex string for hair color (e.g. "#1F2937", "#78350F", "#D1D5DB")
 - "shot_framing": one of ["WIDE_FULL_BODY", "MEDIUM_WAIST_UP", "CLOSE_UP_FACE", "RULE_OF_THIRDS_LEFT", "RULE_OF_THIRDS_RIGHT"] (vary shots across scenes!)
 - "character_pose": one of ["WALK_ACROSS_LEFT_TO_RIGHT", "THREE_QUARTER_EXPLAIN", "SIT_SLUMPED", "SHOCK_AIRBORNE_RECOIL", "POINT_AND_GESTURE", "CELEBRATE_JUMP", "TWO_CHARACTER_CONVERSATION"]
-- "hand_prop": one of ["NONE", "POINTER_STICK", "MONEY_BAG", "PHONE_SCREEN", "MAGNIFYING_GLASS", "LIGHTBULB"]
+- "hand_prop": one of ["NONE", "POINTER_STICK", "MONEY_BAG", "PHONE_SCREEN", "COFFEE_CUP", "BASKET_GOODS", "BOOK_NOTEBOOK", "TOOL_WRENCH", "MAGNIFYING_GLASS", "LIGHTBULB"]
 - "shot_type": one of ["WIDE_STAGE", "MEDIUM_WAIST_UP", "CLOSE_UP_REACTION", "TRACKING_FOLLOW", "WHIP_CUT"]
-- "secondary_actor_role": optional partner role for TWO_CHARACTER_CONVERSATION (["HERO", "CHICKEN_MENTOR", "RICH_MAN", "POOR_MAN", "NARRATOR"])
+- "secondary_actor_role": optional partner role for TWO_CHARACTER_CONVERSATION (["HERO", "NARRATOR", "RICH_MAN", "POOR_MAN", "CHICKEN_MENTOR"])
 - "expression": one of ["HAPPY_TALK", "ANGRY_EVIL", "PANIC_SWEAT_FIRE", "SHOCKED_WIDE_EYES", "TONGUE_STING", "SLEEPING_ZZZ"]
 - "headgear": one of ["NONE", "CHEF_HAT", "HARD_HAT", "CROWN"]
-- "metaphor_visual": one of ["NONE", "CHOMP_CHAIN", "TISSUE_CROSS_SECTION", "TIME_LAPSE_CLOCK", "BOILING_POT_PROCESS", "SUNBURST_SPOTLIGHT"]
-- "topic_pill": short 1–3 word uppercase badge text (e.g. "PROTEIN CHAIN", "ALERT!", "PRO TIP")
+- "diagram_type": one of ["NONE", "BEFORE_AFTER_SPLIT", "STEP_FLOW_ARROWS", "METER_GAUGE_SHIFT", "SCALE_WEIGH_OFF", "SUNBURST_HERO_CALLOUT"]
+- "left_label": short 1–3 word label for BEFORE_AFTER_SPLIT or SCALE_WEIGH_OFF left side
+- "right_label": short 1–3 word label for BEFORE_AFTER_SPLIT or SCALE_WEIGH_OFF right side
+- "step_1": short 1–3 word step for STEP_FLOW_ARROWS
+- "step_2": short 1–3 word step for STEP_FLOW_ARROWS
+- "step_3": short 1–3 word step for STEP_FLOW_ARROWS
+- "metaphor_visual": optional topic-matched visual from ["NONE", "TIME_LAPSE_CLOCK", "BOILING_POT_PROCESS", "SUNBURST_SPOTLIGHT", "CRACKING_EGG_CHICK", "GROWING_MONEY_TREE", "BRAIN_BATTERY_DRAIN", "SCALE_BALANCE_COMPARE", "ROCKET_GROWTH_CHART", "LOCK_AND_KEY_SECRET", "SHIELD_BLOCKING_ARROWS", "DOMINO_CHAIN_REACTION", "CHOMP_CHAIN", "TISSUE_CROSS_SECTION"]
+- "topic_pill": short 1–3 word uppercase badge text derived strictly from the topic
 - "status_pill": one of ["NONE", "GOAL", "PROBLEM", "FIX", "SECRET"]
-- "callout_banner": short 1–3 word punchy Tagalog/Taglish emphasis text (e.g. "MALAKING MALI!", "90% LAKAS", "ITO ANG SIKRETO")
+- "callout_banner": short 1–3 word punchy Tagalog/Taglish emphasis text derived from the topic
 - "hud_widget": one of ["NONE", "PROGRESS_GAUGE", "WAVEFORM_GRAPH", "ANIMATED_CHECKLIST"]
-- "hud_label": short uppercase metric title (e.g. "IPON RATE", "POWER OUTPUT", "RISK LEVEL")
+- "hud_label": short uppercase metric title derived from the topic
 - "hud_from_value": integer 0..100
 - "hud_to_value": integer 0..100
 - "checklist_items": array of 2–4 short strings (only when hud_widget is "ANIMATED_CHECKLIST")
+- "cutaway_diagram_prompt": vivid English description of the topic-specific cross-section cutaway diagram (no text, no labels) for PIXEL_CUTAWAY_EXPLAINER or CROSS_SECTION
+- "flow_direction": one of ["UP", "DOWN", "LEFT_TO_RIGHT", "RADIAL_BURST"]
+- "cutaway_subject": optional ["BRAIN_NEURON_SIGNAL", "SKIN_WOUND_HEALING", "TOOTH_ENAMEL_DECAY", "HEART_ARTERY_FLOW", "BATTERY_CIRCUIT_CHARGE", "SOIL_ROOT_GROWTH"] (ONLY if topic matches!)
 - "cutaway_stage": one of ["SURFACE_ZOOM_IN", "CROSS_SECTION_DAMAGE", "IMMUNE_CLEANUP", "STRAND_AND_VESSEL_REBUILD", "CELL_MIGRATION_CLOSE", "SURFACE_HEALED_ZOOM_OUT"]
-- "pointer_callouts": array of 1–2 objects [{"label": "WHITE BLOOD CELLS", "x": 135, "y": 175}] targeting features on a 270x480 cross-section
+- "pointer_callouts": array of 1–2 objects [{"label": "TOPIC FEATURE", "x": 135, "y": 175}] targeting features on a 270x480 cross-section
         """.trimIndent()
     }
 

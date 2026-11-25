@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.util.Base64
 import com.example.model.AnimationStyle
+import com.example.model.EnvironmentTheme
 import com.example.model.SceneScript
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -22,6 +23,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -36,15 +38,29 @@ class AiHordeImageClient(
             maxRequests = 32
             maxRequestsPerHost = 16
         })
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(45, TimeUnit.SECONDS)
-        .writeTimeout(20, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(25, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 ) {
     companion object {
-        private const val POLL_TIMEOUT_MS = 90_000L
-        private const val POLL_INTERVAL_MS = 2_400L
+        const val POLL_TIMEOUT_MS = 25_000L
+        const val POLLINATIONS_TIMEOUT_SEC = 15L
+        private const val POLL_INTERVAL_MS = 2_000L
         private const val MAX_CONCURRENT_JOBS = 8
+
+        fun buildPollinationsUrl(prompt: String): String {
+            val encoded = URLEncoder.encode(prompt.trim(), Charsets.UTF_8.name())
+            return "https://image.pollinations.ai/prompt/$encoded?width=540&height=960&nologo=true"
+        }
+    }
+
+    private val pollinationsClient: OkHttpClient by lazy {
+        httpClient.newBuilder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(POLLINATIONS_TIMEOUT_SEC, TimeUnit.SECONDS)
+            .callTimeout(POLLINATIONS_TIMEOUT_SEC, TimeUnit.SECONDS)
+            .build()
     }
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
@@ -63,11 +79,20 @@ class AiHordeImageClient(
         scenes.map { scene ->
             async(Dispatchers.IO) {
                 semaphore.withPermit {
+                    val promptForStyle = if (
+                        style == AnimationStyle.PIXEL_CUTAWAY_EXPLAINER ||
+                        style == AnimationStyle.CROSS_SECTION
+                    ) {
+                        scene.cutawayDiagramPrompt.ifBlank { scene.backgroundPrompt }
+                    } else {
+                        scene.backgroundPrompt
+                    }
                     val result = generateBackdrop(
-                        scenePrompt = scene.backgroundPrompt,
+                        scenePrompt = promptForStyle,
                         style = style,
                         aiHordeApiKey = aiHordeApiKey,
-                        seed = scene.sceneId * 1013 + topicSeed
+                        seed = scene.sceneId * 1013 + topicSeed,
+                        environmentTheme = scene.environmentTheme
                     )
                     val count = completed.incrementAndGet()
                     onSceneCompleted(count, total)
@@ -81,9 +106,10 @@ class AiHordeImageClient(
         scenePrompt: String,
         style: AnimationStyle,
         aiHordeApiKey: String,
-        seed: Int
+        seed: Int,
+        environmentTheme: EnvironmentTheme? = null
     ): BackdropResult = withContext(Dispatchers.IO) {
-        // Stickman Whiteboard skips all cloud image calls and draws offline paper grain locally
+        // Stickman Whiteboard & local pixel/cutaway styles skip cloud image calls
         if (!style.usesNetworkArt) {
             return@withContext BackdropResult(
                 bitmap = ProceduralBackdropGenerator.generate(
@@ -91,7 +117,8 @@ class AiHordeImageClient(
                     style = style,
                     width = 1080,
                     height = 1920,
-                    seed = seed
+                    seed = seed,
+                    environmentTheme = environmentTheme
                 ),
                 fromNetwork = false
             )
@@ -101,7 +128,7 @@ class AiHordeImageClient(
         val decoded = tryFetchAiHordeImage(
             prompt = fullPrompt,
             apiKey = aiHordeApiKey.ifBlank { "0000000000" }
-        )
+        ) ?: tryFetchPollinationsImage(fullPrompt)
 
         if (decoded != null) {
             val scaled = scaleCenterCrop(decoded, 1080, 1920)
@@ -109,17 +136,37 @@ class AiHordeImageClient(
             return@withContext BackdropResult(bitmap = scaled, fromNetwork = true)
         }
 
-        // Seamless zero-crash stylized 2.5D layered diorama fallback
+        // Seamless zero-crash multi-environment 2.5D procedural stage fallback
         return@withContext BackdropResult(
             bitmap = ProceduralBackdropGenerator.generate(
                 prompt = scenePrompt,
                 style = style,
                 width = 1080,
                 height = 1920,
-                seed = seed
+                seed = seed,
+                environmentTheme = environmentTheme
             ),
             fromNetwork = false
         )
+    }
+
+    private fun tryFetchPollinationsImage(prompt: String): Bitmap? {
+        return try {
+            val req = Request.Builder()
+                .url(buildPollinationsUrl(prompt))
+                .get()
+                .header("Accept", "image/*")
+                .header("User-Agent", "ToonForgeTagalog/1.0")
+                .build()
+
+            val rawBytes = pollinationsClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                resp.body?.bytes() ?: return null
+            }
+            MagicByteValidator.validateAndDecode(rawBytes)
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     private suspend fun tryFetchAiHordeImage(prompt: String, apiKey: String): Bitmap? {

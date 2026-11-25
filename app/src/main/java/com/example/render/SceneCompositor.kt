@@ -11,6 +11,7 @@ import com.example.art.ProceduralBackdropGenerator
 import com.example.model.ActorRole
 import com.example.model.AnimationStyle
 import com.example.model.CharacterPose
+import com.example.model.DynamicDiagramType
 import com.example.model.MetaphorVisual
 import com.example.model.ProductionMode
 import com.example.model.TimelineScene
@@ -52,12 +53,14 @@ object SceneCompositor {
         val resolvedPose = ProceduralPuppetEngine.resolveCharacterPose(active.scene)
         val resolvedProp = ProceduralPuppetEngine.resolveHandProp(active.scene, resolvedPose)
         val resolvedMetaphor = MetaphorVisualRenderer.resolveMetaphorVisual(active.scene, style)
+        val resolvedDiagram = DynamicDiagramRenderer.resolveDiagramType(active.scene, style)
         val resolvedExpression = ProceduralPuppetEngine.resolveExpression(active.scene, style)
         val isCutaway = style == AnimationStyle.CROSS_SECTION || productionMode == ProductionMode.CROSS_SECTION_EXPLAINER
         val isPixelCutaway = style == AnimationStyle.PIXEL_CUTAWAY_EXPLAINER
         val isClipAutoEditor = productionMode == ProductionMode.CLIP_AUTO_EDITOR
+        val hasDynamicDiagram = DynamicDiagramRenderer.isDiagramAlongsideCharacter(resolvedDiagram)
         val hasDiagram = !isCutaway && !isPixelCutaway && !isClipAutoEditor &&
-            MetaphorVisualRenderer.isDiagramAlongsideCharacter(resolvedMetaphor)
+            (hasDynamicDiagram || MetaphorVisualRenderer.isDiagramAlongsideCharacter(resolvedMetaphor))
 
         // 1. Cinematic 2D Shot Cuts & Camera Tracking via CameraController
         val cam = CameraController.computeCameraTransform(
@@ -92,7 +95,8 @@ object SceneCompositor {
                 scene = active.scene,
                 sceneElapsedSec = sceneElapsedSec,
                 sceneDurationSec = sceneDurationSec,
-                globalTimeSec = globalTimeSec
+                globalTimeSec = globalTimeSec,
+                backdropBitmap = active.backdropBitmap
             )
         } else if (isCutaway) {
             CrossSectionDiagramRenderer.drawCutaway(
@@ -103,7 +107,8 @@ object SceneCompositor {
                 sceneElapsedSec = sceneElapsedSec,
                 sceneDurationSec = sceneDurationSec,
                 globalTimeSec = globalTimeSec,
-                hasActiveHud = hasActiveHud
+                hasActiveHud = hasActiveHud,
+                backdropBitmap = active.backdropBitmap
             )
         } else if (externalClipBitmap != null && !externalClipBitmap.isRecycled) {
             val src = Rect(0, 0, externalClipBitmap.width, externalClipBitmap.height)
@@ -127,6 +132,15 @@ object SceneCompositor {
             }
             canvas.drawRect(0f, 0f, width, height * 0.28f, topScrim)
             canvas.drawRect(0f, height * 0.56f, width, height, botScrim)
+        } else if (resolvedDiagram == DynamicDiagramType.SUNBURST_HERO_CALLOUT) {
+            DynamicDiagramRenderer.drawSunburstHeroCallout(
+                canvas = canvas,
+                w = width,
+                h = height,
+                scene = active.scene,
+                sceneElapsedSec = sceneElapsedSec,
+                globalTimeSec = globalTimeSec
+            )
         } else if (resolvedMetaphor == MetaphorVisual.SUNBURST_SPOTLIGHT) {
             MetaphorVisualRenderer.drawSunburstBackground(
                 canvas = canvas,
@@ -142,7 +156,8 @@ object SceneCompositor {
                     style = style,
                     width = width.toInt().coerceAtLeast(360),
                     height = height.toInt().coerceAtLeast(640),
-                    seed = active.scene.sceneId * 997 + style.ordinal
+                    seed = active.scene.sceneId * 997 + style.ordinal,
+                    environmentTheme = active.scene.environmentTheme
                 )
             }
             if (backdrop != null && !backdrop.isRecycled) {
@@ -176,18 +191,31 @@ object SceneCompositor {
 
         canvas.restore()
 
-        // 4b. Animated 2D Visual Metaphor Diagram alongside character
+        // 4b. Animated 2D Visual Explainer / Metaphor Diagram alongside character
         if (hasDiagram) {
-            MetaphorVisualRenderer.drawDiagram(
-                canvas = canvas,
-                w = width,
-                h = height,
-                metaphor = resolvedMetaphor,
-                scene = active.scene,
-                sceneElapsedSec = sceneElapsedSec,
-                sceneDurationSec = sceneDurationSec,
-                globalTimeSec = globalTimeSec
-            )
+            if (hasDynamicDiagram) {
+                DynamicDiagramRenderer.drawDiagram(
+                    canvas = canvas,
+                    w = width,
+                    h = height,
+                    diagramType = resolvedDiagram,
+                    scene = active.scene,
+                    sceneElapsedSec = sceneElapsedSec,
+                    sceneDurationSec = sceneDurationSec,
+                    globalTimeSec = globalTimeSec
+                )
+            } else {
+                MetaphorVisualRenderer.drawDiagram(
+                    canvas = canvas,
+                    w = width,
+                    h = height,
+                    metaphor = resolvedMetaphor,
+                    scene = active.scene,
+                    sceneElapsedSec = sceneElapsedSec,
+                    sceneDurationSec = sceneDurationSec,
+                    globalTimeSec = globalTimeSec
+                )
+            }
         }
 
         // 5. Articulated Multi-Pose Puppet Layer (re-applies camera transform inside screen-space HUD safe clip)
@@ -220,7 +248,7 @@ object SceneCompositor {
                 customSprite = customSprite,
                 scaleMultiplier = when {
                     isCutaway -> 0.64f
-                    hasDiagram -> 0.78f
+                    hasDiagram -> 0.82f
                     else -> 1f
                 },
                 extraOffsetX = when {
@@ -235,7 +263,12 @@ object SceneCompositor {
                 sceneId = active.scene.sceneId,
                 customSprites = customSprites,
                 expression = resolvedExpression,
-                headgear = active.scene.headgear
+                headgear = active.scene.headgear,
+                characterGender = ProceduralPuppetEngine.resolveCharacterGender(active.scene),
+                characterAge = ProceduralPuppetEngine.resolveCharacterAge(active.scene),
+                characterOutfit = ProceduralPuppetEngine.resolveCharacterOutfit(active.scene),
+                outfitColorHex = active.scene.outfitColorHex,
+                hairColorHex = active.scene.hairColorHex
             )
             canvas.restore()
         }

@@ -63,14 +63,18 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -101,6 +105,8 @@ import com.example.ui.theme.StudioSurfaceElevated
 import com.example.ui.theme.StudioSurfaceHighlight
 import com.example.ui.viewmodel.DetectionBannerState
 import com.example.ui.viewmodel.MainViewModel
+import java.util.Locale
+import kotlin.math.roundToInt
 
 private val EmeraldSuccess = Color(0xFF10B981)
 
@@ -145,6 +151,7 @@ fun SettingsScreen(
     var openRouterKey by remember { mutableStateOf(settings.openRouterApiKey) }
     var aiHordeKey by remember { mutableStateOf(settings.aiHordeKey) }
     var allowOfflineTts by remember { mutableStateOf(settings.allowOfflineTtsFallback) }
+    var narrationSpeed by remember { mutableFloatStateOf(settings.narrationSpeed) }
     var showAdvancedFallbacks by remember { mutableStateOf(false) }
 
     LaunchedEffect(settings) {
@@ -157,6 +164,7 @@ fun SettingsScreen(
         openRouterKey = settings.openRouterApiKey
         aiHordeKey = settings.aiHordeKey
         allowOfflineTts = settings.allowOfflineTtsFallback
+        narrationSpeed = settings.narrationSpeed
     }
 
     fun applyLlmKeyChange(rawNewKey: String) {
@@ -601,7 +609,8 @@ fun SettingsScreen(
                                 llmBaseUrl = llmBaseUrl,
                                 llmApiKey = llmApiKey,
                                 selectedModelId = selectedModelId,
-                                ttsBaseUrl = ttsBaseUrl
+                                ttsBaseUrl = ttsBaseUrl,
+                                narrationSpeed = narrationSpeed
                             )
                         },
                         modifier = Modifier
@@ -924,6 +933,100 @@ fun SettingsScreen(
                                         )
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                    Surface(
+                        color = StudioSurfaceElevated,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, StudioOutline),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            val speedLabel = String.format(Locale.US, "%.2fx", narrationSpeed)
+                            val pacingHint = when {
+                                narrationSpeed < 0.95f -> "Dramatic Slow"
+                                narrationSpeed > 1.05f -> "Viral Fast"
+                                else -> "Natural Balanced"
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Narration Speed",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "$pacingHint • Passed to ElevenLabs voice_settings",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Surface(
+                                    color = ForgeAmber.copy(alpha = 0.16f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .clickable {
+                                            narrationSpeed = 1.0f
+                                            viewModel.setNarrationSpeed(1.0f)
+                                        }
+                                        .minimumInteractiveComponentSize()
+                                        .testTag("narration_speed_reset_badge")
+                                ) {
+                                    Text(
+                                        text = speedLabel,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = ForgeAmber,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                            Slider(
+                                value = narrationSpeed,
+                                onValueChange = { raw ->
+                                    narrationSpeed = ((raw * 100f).roundToInt() / 100f).coerceIn(0.85f, 1.15f)
+                                },
+                                onValueChangeFinished = {
+                                    viewModel.setNarrationSpeed(narrationSpeed)
+                                },
+                                valueRange = 0.85f..1.15f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = ForgeAmber,
+                                    activeTrackColor = ForgeAmber,
+                                    inactiveTrackColor = StudioOutline
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("narration_speed_slider")
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "0.85x Dramatic",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "1.00x Default",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "1.15x Viral",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }

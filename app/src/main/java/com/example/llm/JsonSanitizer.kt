@@ -5,8 +5,15 @@ import com.example.model.ActorExpression
 import com.example.model.ActorHeadgear
 import com.example.model.ActorRole
 import com.example.model.CameraMotion
+import com.example.model.CharacterAge
+import com.example.model.CharacterGender
+import com.example.model.CharacterOutfit
 import com.example.model.CharacterPose
 import com.example.model.CutawayStage
+import com.example.model.CutawaySubject
+import com.example.model.DynamicDiagramType
+import com.example.model.EnvironmentTheme
+import com.example.model.FlowDirection
 import com.example.model.HandProp
 import com.example.model.HudWidget
 import com.example.model.MetaphorVisual
@@ -197,6 +204,21 @@ object JsonSanitizer {
         val metaphorVisual = MetaphorVisual.fromRaw(obj.optString("metaphor_visual", "NONE"))
         val topicPillLabel = obj.optString("topic_pill", "").trim()
         val cutawayStage = CutawayStage.fromRaw(obj.optString("cutaway_stage", ""))
+        val cutawaySubject = CutawaySubject.fromRaw(obj.optString("cutaway_subject", ""))
+        val environmentTheme = EnvironmentTheme.fromRaw(obj.optString("environment_theme", ""))
+        val characterGender = CharacterGender.fromRaw(obj.optString("character_gender", ""))
+        val characterAge = CharacterAge.fromRaw(obj.optString("character_age", ""))
+        val characterOutfit = CharacterOutfit.fromRaw(obj.optString("character_outfit", ""))
+        val outfitColorHex = obj.optString("outfit_color_hex", "").trim()
+        val hairColorHex = obj.optString("hair_color_hex", "").trim()
+        val cutawayDiagramPrompt = obj.optString("cutaway_diagram_prompt", "").trim()
+        val flowDirection = FlowDirection.fromRaw(obj.optString("flow_direction", "LEFT_TO_RIGHT"))
+        val diagramType = DynamicDiagramType.fromRaw(obj.optString("diagram_type", "NONE"))
+        val leftLabel = obj.optString("left_label", "").trim()
+        val rightLabel = obj.optString("right_label", "").trim()
+        val step1 = obj.optString("step_1", "").trim()
+        val step2 = obj.optString("step_2", "").trim()
+        val step3 = obj.optString("step_3", "").trim()
 
         val pointerCalloutsArray = obj.optJSONArray("pointer_callouts")
         val pointerCallouts = if (pointerCalloutsArray != null) {
@@ -239,7 +261,22 @@ object JsonSanitizer {
             headgear = headgear,
             metaphorVisual = metaphorVisual,
             topicPillLabel = topicPillLabel,
+            environmentTheme = environmentTheme,
+            cutawaySubject = cutawaySubject,
+            characterGender = characterGender,
+            characterAge = characterAge,
+            characterOutfit = characterOutfit,
+            outfitColorHex = outfitColorHex,
+            hairColorHex = hairColorHex,
             cutawayStage = cutawayStage,
+            cutawayDiagramPrompt = cutawayDiagramPrompt,
+            flowDirection = flowDirection,
+            diagramType = diagramType,
+            leftLabel = leftLabel,
+            rightLabel = rightLabel,
+            step1 = step1,
+            step2 = step2,
+            step3 = step3,
             pointerCallouts = pointerCallouts
         )
     }

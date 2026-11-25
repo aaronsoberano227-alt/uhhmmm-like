@@ -54,10 +54,7 @@ enum class WorldFx {
     NONE,
     COIN_RAIN,
     FIRE_SPARKS,
-    GIANT_HAND_GRAB,
-    FLOATING_HOUSES,
-    CHALKBOARD_DRAW,
-    EGG_CRACK;
+    CHALKBOARD_DRAW;
 
     companion object {
         fun fromRaw(raw: String?): WorldFx {
@@ -164,13 +161,20 @@ enum class HandProp {
     POINTER_STICK,
     MONEY_BAG,
     PHONE_SCREEN,
+    COFFEE_CUP,
+    BASKET_GOODS,
+    BOOK_NOTEBOOK,
+    TOOL_WRENCH,
     MAGNIFYING_GLASS,
     LIGHTBULB;
 
     companion object {
         fun fromRaw(raw: String?): HandProp {
             val clean = raw?.trim()?.uppercase() ?: return NONE
-            return entries.firstOrNull { it.name == clean } ?: NONE
+            return when (clean) {
+                "EGG_BASKET" -> BASKET_GOODS
+                else -> entries.firstOrNull { it.name == clean } ?: NONE
+            }
         }
     }
 }
@@ -227,12 +231,143 @@ enum class MetaphorVisual {
     TISSUE_CROSS_SECTION,
     TIME_LAPSE_CLOCK,
     BOILING_POT_PROCESS,
-    SUNBURST_SPOTLIGHT;
+    SUNBURST_SPOTLIGHT,
+    CRACKING_EGG_CHICK,
+    GROWING_MONEY_TREE,
+    BRAIN_BATTERY_DRAIN,
+    SCALE_BALANCE_COMPARE,
+    ROCKET_GROWTH_CHART,
+    LOCK_AND_KEY_SECRET,
+    SHIELD_BLOCKING_ARROWS,
+    DOMINO_CHAIN_REACTION;
 
     companion object {
         fun fromRaw(raw: String?): MetaphorVisual {
             val clean = raw?.trim()?.uppercase() ?: return NONE
             return entries.firstOrNull { it.name == clean } ?: NONE
+        }
+    }
+}
+
+enum class EnvironmentTheme {
+    BRIGHT_MORNING_KITCHEN,
+    SUNNY_MARKET_STREET,
+    MODERN_OFFICE_DESK,
+    COZY_BEDROOM_MIDNIGHT,
+    CLASSROOM_CHALKBOARD,
+    BANK_VAULT_FINANCE,
+    SUNNY_PARK_NATURE,
+    SCIENCE_LAB_INTERIOR,
+    HOSPITAL_CLINIC,
+    ABSTRACT_STUDIO_GRADIENT,
+    DRAMATIC_SUNSET_CITY;
+
+    companion object {
+        fun fromRaw(raw: String?): EnvironmentTheme? {
+            val clean = raw?.trim()?.uppercase() ?: return null
+            return when (clean) {
+                "MODERN_OFFICE" -> MODERN_OFFICE_DESK
+                "COZY_BEDROOM_NIGHT" -> COZY_BEDROOM_MIDNIGHT
+                "CLASSROOM" -> CLASSROOM_CHALKBOARD
+                "FINANCE_VAULT" -> BANK_VAULT_FINANCE
+                "SUNNY_PARK" -> SUNNY_PARK_NATURE
+                "ABSTRACT_SUNBURST" -> ABSTRACT_STUDIO_GRADIENT
+                else -> entries.firstOrNull { it.name == clean }
+            }
+        }
+    }
+}
+
+enum class CharacterGender {
+    MALE,
+    FEMALE;
+
+    companion object {
+        fun fromRaw(raw: String?): CharacterGender? {
+            val clean = raw?.trim()?.uppercase() ?: return null
+            return entries.firstOrNull { it.name == clean }
+        }
+    }
+}
+
+enum class CharacterAge {
+    CHILD,
+    YOUNG_ADULT,
+    MIDDLE_AGED,
+    ELDERLY;
+
+    companion object {
+        fun fromRaw(raw: String?): CharacterAge? {
+            val clean = raw?.trim()?.uppercase() ?: return null
+            return when (clean) {
+                "TEEN" -> CHILD
+                "YOUNG" -> YOUNG_ADULT
+                "ADULT" -> MIDDLE_AGED
+                else -> entries.firstOrNull { it.name == clean }
+            }
+        }
+    }
+}
+
+enum class CharacterOutfit {
+    CASUAL_TSHIRT,
+    MARKET_APRON,
+    OFFICE_SUIT,
+    STUDENT_UNIFORM,
+    MEDICAL_SCRUBS,
+    HOODIE,
+    WORK_UNIFORM;
+
+    companion object {
+        fun fromRaw(raw: String?): CharacterOutfit? {
+            val clean = raw?.trim()?.uppercase() ?: return null
+            return entries.firstOrNull { it.name == clean }
+        }
+    }
+}
+
+enum class FlowDirection {
+    UP,
+    DOWN,
+    LEFT_TO_RIGHT,
+    RADIAL_BURST;
+
+    companion object {
+        fun fromRaw(raw: String?): FlowDirection {
+            val clean = raw?.trim()?.uppercase() ?: return LEFT_TO_RIGHT
+            return entries.firstOrNull { it.name == clean } ?: LEFT_TO_RIGHT
+        }
+    }
+}
+
+enum class DynamicDiagramType {
+    NONE,
+    BEFORE_AFTER_SPLIT,
+    STEP_FLOW_ARROWS,
+    METER_GAUGE_SHIFT,
+    SCALE_WEIGH_OFF,
+    SUNBURST_HERO_CALLOUT;
+
+    companion object {
+        fun fromRaw(raw: String?): DynamicDiagramType {
+            val clean = raw?.trim()?.uppercase() ?: return NONE
+            return entries.firstOrNull { it.name == clean } ?: NONE
+        }
+    }
+}
+
+enum class CutawaySubject {
+    BRAIN_NEURON_SIGNAL,
+    SKIN_WOUND_HEALING,
+    TOOTH_ENAMEL_DECAY,
+    HEART_ARTERY_FLOW,
+    BATTERY_CIRCUIT_CHARGE,
+    SOIL_ROOT_GROWTH;
+
+    companion object {
+        fun fromRaw(raw: String?): CutawaySubject? {
+            val clean = raw?.trim()?.uppercase() ?: return null
+            return entries.firstOrNull { it.name == clean }
         }
     }
 }
@@ -283,7 +418,22 @@ data class SceneScript(
     val headgear: ActorHeadgear = ActorHeadgear.NONE,
     val metaphorVisual: MetaphorVisual = MetaphorVisual.NONE,
     val topicPillLabel: String = "",
+    val environmentTheme: EnvironmentTheme? = null,
+    val cutawaySubject: CutawaySubject? = null,
+    val characterGender: CharacterGender? = null,
+    val characterAge: CharacterAge? = null,
+    val characterOutfit: CharacterOutfit? = null,
+    val outfitColorHex: String = "",
+    val hairColorHex: String = "",
     val cutawayStage: CutawayStage? = null,
+    val cutawayDiagramPrompt: String = "",
+    val flowDirection: FlowDirection = FlowDirection.LEFT_TO_RIGHT,
+    val diagramType: DynamicDiagramType = DynamicDiagramType.NONE,
+    val leftLabel: String = "",
+    val rightLabel: String = "",
+    val step1: String = "",
+    val step2: String = "",
+    val step3: String = "",
     val pointerCallouts: List<PointerCallout> = emptyList()
 )
 
@@ -355,7 +505,8 @@ data class StudioSettings(
     val spriteStickerOutline: Boolean = true,
     val customBgmPath: String = "",
     val customBgmName: String = "",
-    val pronunciationDictionary: List<PronunciationEntry> = emptyList()
+    val pronunciationDictionary: List<PronunciationEntry> = emptyList(),
+    val narrationSpeed: Float = 1.0f
 ) {
     val activeTemplate: PromptTemplate?
         get() = promptTemplates.firstOrNull { it.id == activePromptId } ?: promptTemplates.firstOrNull()

@@ -137,6 +137,179 @@ object PuppetPropRenderer {
                 }
             }
 
+            HandProp.COFFEE_CUP -> {
+                val mugRect = RectF(-24f * u, -38f * u, 28f * u, 20f * u)
+                val handleRect = RectF(-42f * u, -26f * u, -16f * u, 10f * u)
+                if (silhouetteOnly) {
+                    canvas.drawArc(handleRect, 90f, 180f, false, propOutline)
+                    canvas.drawRoundRect(mugRect, 10f * u, 10f * u, propOutline)
+                } else {
+                    // Rising steam wisps above rim
+                    val steamPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = 0xBBFFFFFF.toInt()
+                        setStyle(Paint.Style.STROKE)
+                        strokeWidth = 4.5f * u
+                        strokeCap = Paint.Cap.ROUND
+                    }
+                    for (i in -1..1 step 2) {
+                        val sx = i * 9f * u + 2f * u
+                        val sway = sin(globalTimeSec * 4.5f + i) * 6f * u
+                        val sp = Path().apply {
+                            moveTo(sx, mugRect.top - 6f * u)
+                            quadTo(sx - sway, mugRect.top - 22f * u, sx + sway, mugRect.top - 40f * u)
+                        }
+                        canvas.drawPath(sp, steamPaint)
+                    }
+
+                    // Mug handle (gripped at wrist center)
+                    val handleStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = 0xFFE2E8F0.toInt()
+                        setStyle(Paint.Style.STROKE)
+                        strokeWidth = 9f * u
+                    }
+                    canvas.drawArc(handleRect, 90f, 180f, false, handleStroke)
+
+                    // Ceramic mug body + hot coffee surface
+                    canvas.drawRoundRect(mugRect, 10f * u, 10f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFF8FAFC.toInt() })
+                    canvas.drawRoundRect(
+                        RectF(mugRect.left + 8f * u, mugRect.top + 18f * u, mugRect.right - 8f * u, mugRect.bottom - 14f * u),
+                        6f * u, 6f * u,
+                        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFEA580C.toInt() }
+                    )
+                    val rimRect = RectF(mugRect.left + 3f * u, mugRect.top - 6f * u, mugRect.right - 3f * u, mugRect.top + 10f * u)
+                    canvas.drawOval(rimRect, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF451A03.toInt() })
+                    if (strokeW > 0f) {
+                        canvas.drawRoundRect(mugRect, 10f * u, 10f * u, propOutline)
+                    }
+                }
+            }
+
+            HandProp.BASKET_GOODS -> {
+                val handleArc = RectF(-36f * u, -26f * u, 36f * u, 42f * u)
+                val basketBody = Path().apply {
+                    moveTo(-42f * u, 16f * u)
+                    lineTo(42f * u, 16f * u)
+                    lineTo(30f * u, 74f * u)
+                    lineTo(-30f * u, 74f * u)
+                    close()
+                }
+                if (silhouetteOnly) {
+                    canvas.drawArc(handleArc, 180f, 180f, false, propOutline)
+                    canvas.drawPath(basketBody, propOutline)
+                } else {
+                    // Woven handle rising straight to hand grip (0,0)
+                    val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = 0xFF92400E.toInt()
+                        setStyle(Paint.Style.STROKE)
+                        strokeWidth = 9f * u
+                        strokeCap = Paint.Cap.ROUND
+                    }
+                    canvas.drawArc(handleArc, 180f, 180f, false, handlePaint)
+
+                    // Assorted fresh palengke goods (produce, mango, greens) nestled in basket
+                    val itemRed = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFEF4444.toInt() }
+                    val itemGold = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFACC15.toInt() }
+                    val itemGreen = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF22C55E.toInt() }
+                    for ((ex, ey, p) in listOf(
+                        Triple(-18f * u, 10f * u, itemRed),
+                        Triple(18f * u, 10f * u, itemGold),
+                        Triple(0f, 4f * u, itemGreen)
+                    )) {
+                        val er = RectF(ex - 15f * u, ey - 17f * u, ex + 15f * u, ey + 17f * u)
+                        canvas.drawOval(er, p)
+                        if (strokeW > 0f) canvas.drawOval(er, propOutline)
+                    }
+
+                    // Wicker basket body + rim + cross-weave
+                    canvas.drawPath(basketBody, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFD97706.toInt() })
+                    val weavePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = 0xFF92400E.toInt()
+                        strokeWidth = 3.5f * u
+                    }
+                    canvas.drawLine(-36f * u, 36f * u, 36f * u, 36f * u, weavePaint)
+                    canvas.drawLine(-32f * u, 54f * u, 32f * u, 54f * u, weavePaint)
+                    canvas.drawLine(-14f * u, 18f * u, -10f * u, 72f * u, weavePaint)
+                    canvas.drawLine(14f * u, 18f * u, 10f * u, 72f * u, weavePaint)
+
+                    val rimRect = RectF(-46f * u, 10f * u, 46f * u, 24f * u)
+                    canvas.drawRoundRect(rimRect, 7f * u, 7f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFB45309.toInt() })
+                    if (strokeW > 0f) {
+                        canvas.drawPath(basketBody, propOutline)
+                        canvas.drawRoundRect(rimRect, 7f * u, 7f * u, propOutline)
+                    }
+                }
+            }
+
+            HandProp.BOOK_NOTEBOOK -> {
+                val coverRect = RectF(-34f * u, -52f * u, 38f * u, 32f * u)
+                val pagesRect = RectF(-28f * u, -46f * u, 34f * u, 26f * u)
+                if (silhouetteOnly) {
+                    canvas.drawRoundRect(coverRect, 8f * u, 8f * u, propOutline)
+                } else {
+                    canvas.drawRoundRect(coverRect, 8f * u, 8f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF1D4ED8.toInt() })
+                    canvas.drawRoundRect(
+                        RectF(coverRect.left + 8f * u, coverRect.top + 8f * u, coverRect.right - 2f * u, coverRect.bottom - 2f * u),
+                        5f * u, 5f * u,
+                        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFF8FAFC.toInt() }
+                    )
+                    // Spine & top front cover
+                    canvas.drawRoundRect(
+                        RectF(coverRect.left, coverRect.top, coverRect.right - 6f * u, coverRect.bottom - 8f * u),
+                        7f * u, 7f * u,
+                        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF2563EB.toInt() }
+                    )
+                    canvas.drawRect(coverRect.left, coverRect.top + 4f * u, coverRect.left + 12f * u, coverRect.bottom - 10f * u,
+                        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF1E3A8A.toInt() })
+                    // Label stripe on cover + bookmark ribbon
+                    canvas.drawRoundRect(
+                        RectF(-12f * u, -34f * u, 24f * u, -16f * u),
+                        4f * u, 4f * u,
+                        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFEF08A.toInt() }
+                    )
+                    canvas.drawRect(12f * u, coverRect.bottom - 10f * u, 20f * u, coverRect.bottom + 10f * u,
+                        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFEF4444.toInt() })
+                    if (strokeW > 0f) {
+                        canvas.drawRoundRect(coverRect, 8f * u, 8f * u, propOutline)
+                    }
+                    // Reference to keep pagesRect clean
+                    pagesRect.centerX()
+                }
+            }
+
+            HandProp.TOOL_WRENCH -> {
+                val shaftRect = RectF(-9f * u, -62f * u, 9f * u, 28f * u)
+                val headCx = 0f
+                val headCy = -66f * u
+                val headR = 24f * u
+                if (silhouetteOnly) {
+                    canvas.drawRoundRect(shaftRect, 6f * u, 6f * u, propOutline)
+                    canvas.drawCircle(headCx, headCy, headR, propOutline)
+                } else {
+                    val steelDark = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF64748B.toInt() }
+                    val steelLight = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFCBD5E1.toInt() }
+                    canvas.drawRoundRect(shaftRect, 6f * u, 6f * u, steelLight)
+                    canvas.drawRoundRect(RectF(-3f * u, -52f * u, 3f * u, 16f * u), 3f * u, 3f * u, steelDark)
+                    // Open-jaw C wrench head
+                    val jawPath = Path().apply {
+                        addArc(RectF(headCx - headR, headCy - headR, headCx + headR, headCy + headR), -50f, 280f)
+                        lineTo(headCx + 8f * u, headCy - 4f * u)
+                        lineTo(headCx + 8f * u, headCy - 18f * u)
+                        close()
+                    }
+                    canvas.drawCircle(headCx, headCy, headR, steelLight)
+                    canvas.drawRoundRect(
+                        RectF(headCx - 10f * u, headCy - headR - 4f * u, headCx + 10f * u, headCy - 2f * u),
+                        3f * u, 3f * u,
+                        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF0F172A.toInt() }
+                    )
+                    if (strokeW > 0f) {
+                        canvas.drawRoundRect(shaftRect, 6f * u, 6f * u, propOutline)
+                        canvas.drawCircle(headCx, headCy, headR, propOutline)
+                    }
+                    jawPath.isEmpty
+                }
+            }
+
             HandProp.MAGNIFYING_GLASS -> {
                 val lensCx = 56f * u
                 val lensCy = -54f * u

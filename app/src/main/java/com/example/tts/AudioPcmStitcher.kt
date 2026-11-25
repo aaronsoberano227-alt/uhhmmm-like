@@ -19,6 +19,7 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.tanh
 import kotlin.random.Random
@@ -39,12 +40,79 @@ data class StitchedAudioTimeline(
     val sceneWordTimings: List<List<WordTiming>>
 )
 
+data class BreathingPausePlan(
+    val transitionPausesMs: List<Double>,
+    val outroHoldMs: Double
+) {
+    val totalAddedMs: Double
+        get() = transitionPausesMs.sum() + outroHoldMs
+}
+
 object AudioPcmStitcher {
 
     const val TARGET_SAMPLE_RATE = 44100
     const val TARGET_CHANNELS = 1
     const val BGM_DUCKED_LEVEL = 0.10f
     const val BGM_PAUSE_LEVEL = 0.28f
+    const val MIN_BREATHING_PAUSE_MS = 350.0
+    const val MAX_BREATHING_PAUSE_MS = 850.0
+    const val MAX_OUTRO_HOLD_MS = 1200.0
+
+    fun computeBreathingPauses(
+        sceneCount: Int,
+        totalSpeechMs: Double,
+        targetDurationMs: Double?
+    ): BreathingPausePlan {
+        if (sceneCount <= 0 || targetDurationMs == null || targetDurationMs <= 0.0 || totalSpeechMs >= targetDurationMs) {
+            return BreathingPausePlan(
+                transitionPausesMs = List((sceneCount - 1).coerceAtLeast(0)) { 0.0 },
+                outroHoldMs = 0.0
+            )
+        }
+        val gapMs = (targetDurationMs - totalSpeechMs).coerceAtLeast(0.0)
+        val transitions = (sceneCount - 1).coerceAtLeast(0)
+        if (transitions == 0) {
+            return BreathingPausePlan(
+                transitionPausesMs = emptyList(),
+                outroHoldMs = gapMs.coerceAtMost(MAX_OUTRO_HOLD_MS)
+            )
+        }
+
+        val maxTransitionCapacity = transitions * MAX_BREATHING_PAUSE_MS
+        val desiredOutro = when {
+            gapMs > maxTransitionCapacity -> (gapMs - maxTransitionCapacity).coerceIn(0.0, MAX_OUTRO_HOLD_MS)
+            gapMs >= 500.0 -> (gapMs * 0.22).coerceIn(300.0, MAX_OUTRO_HOLD_MS)
+            else -> gapMs
+        }
+        val remainingForTransitions = (gapMs - desiredOutro).coerceAtLeast(0.0)
+        val pauses = MutableList(transitions) { 0.0 }
+
+        if (remainingForTransitions >= MIN_BREATHING_PAUSE_MS) {
+            val avgPerTransition = remainingForTransitions / transitions.toDouble()
+            if (avgPerTransition >= MIN_BREATHING_PAUSE_MS) {
+                val perBeat = avgPerTransition.coerceIn(MIN_BREATHING_PAUSE_MS, MAX_BREATHING_PAUSE_MS)
+                for (i in 0 until transitions) {
+                    pauses[i] = perBeat
+                }
+            } else {
+                // Place natural 350ms breathing beats on as many transitions as budget supports
+                val activeBeats = (remainingForTransitions / MIN_BREATHING_PAUSE_MS).toInt().coerceIn(1, transitions)
+                val perBeat = (remainingForTransitions / activeBeats.toDouble())
+                    .coerceIn(MIN_BREATHING_PAUSE_MS, MAX_BREATHING_PAUSE_MS)
+                for (b in 0 until activeBeats) {
+                    val slot = if (activeBeats == 1) transitions / 2 else (b * transitions) / activeBeats
+                    pauses[slot.coerceIn(0, transitions - 1)] = perBeat
+                }
+            }
+        }
+
+        val usedByTransitions = pauses.sum()
+        val finalOutro = (gapMs - usedByTransitions).coerceIn(0.0, MAX_OUTRO_HOLD_MS)
+        return BreathingPausePlan(
+            transitionPausesMs = pauses,
+            outroHoldMs = finalOutro
+        )
+    }
 
     fun decodeAudioBytesToPcm44100Mono(
         audioBytes: ByteArray,
@@ -235,29 +303,52 @@ object AudioPcmStitcher {
         narrationPerScene: List<String>,
         scenes: List<SceneScript> = emptyList(),
         style: AnimationStyle = AnimationStyle.PAPER_DIORAMA,
-        customBgmPcm44100Mono: ByteArray? = null
+        customBgmPcm44100Mono: ByteArray? = null,
+        targetDurationMs: Double? = null
     ): StitchedAudioTimeline {
         val unifiedStream = ByteArrayOutputStream()
         val starts = mutableListOf<Double>()
         val ends = mutableListOf<Double>()
         val globalTimings = mutableListOf<List<WordTiming>>()
 
+        val speechDurationsMs = decodedPcmPerScene.map { pcm ->
+            (pcm.size / 2.0 / TARGET_SAMPLE_RATE.toDouble()) * 1000.0
+        }
+        val totalSpeechMs = speechDurationsMs.sum()
+        val pausePlan = computeBreathingPauses(
+            sceneCount = decodedPcmPerScene.size,
+            totalSpeechMs = totalSpeechMs,
+            targetDurationMs = targetDurationMs
+        )
+
         var cumulativeOffsetMs = 0.0
         for (i in decodedPcmPerScene.indices) {
             val pcm = decodedPcmPerScene[i]
-            val exactDurationMs = (pcm.size / 2.0 / TARGET_SAMPLE_RATE.toDouble()) * 1000.0
+            val speechDurationMs = speechDurationsMs[i]
             unifiedStream.write(pcm)
 
+            val trailingSilenceMs = if (i < decodedPcmPerScene.lastIndex) {
+                pausePlan.transitionPausesMs.getOrElse(i) { 0.0 }
+            } else {
+                pausePlan.outroHoldMs
+            }
+            val silenceSamples = ((trailingSilenceMs / 1000.0) * TARGET_SAMPLE_RATE).roundToInt().coerceAtLeast(0)
+            val actualTrailingSilenceMs = (silenceSamples.toDouble() / TARGET_SAMPLE_RATE.toDouble()) * 1000.0
+            if (silenceSamples > 0) {
+                unifiedStream.write(ByteArray(silenceSamples * 2))
+            }
+
             starts.add(cumulativeOffsetMs)
-            ends.add(cumulativeOffsetMs + exactDurationMs)
+            val sceneEndMs = cumulativeOffsetMs + speechDurationMs + actualTrailingSilenceMs
+            ends.add(sceneEndMs)
 
             val rawTimings = localTimingsPerScene.getOrNull(i).orEmpty()
             val shiftedTimings = if (rawTimings.isNotEmpty()) {
                 rawTimings.map { wt ->
                     WordTiming(
                         word = wt.word,
-                        startMs = (cumulativeOffsetMs + wt.startMs).coerceIn(cumulativeOffsetMs, cumulativeOffsetMs + exactDurationMs),
-                        endMs = (cumulativeOffsetMs + wt.endMs).coerceIn(cumulativeOffsetMs, cumulativeOffsetMs + exactDurationMs)
+                        startMs = (cumulativeOffsetMs + wt.startMs).coerceIn(cumulativeOffsetMs, cumulativeOffsetMs + speechDurationMs),
+                        endMs = (cumulativeOffsetMs + wt.endMs).coerceIn(cumulativeOffsetMs, cumulativeOffsetMs + speechDurationMs)
                     )
                 }
             } else {
@@ -268,7 +359,7 @@ object AudioPcmStitcher {
                 } else {
                     val totalChars = words.sumOf { it.length.coerceAtLeast(1) }.toDouble()
                     var cursor = cumulativeOffsetMs + 50.0
-                    val usable = (exactDurationMs - 100.0).coerceAtLeast(100.0)
+                    val usable = (speechDurationMs - 100.0).coerceAtLeast(100.0)
                     words.map { w ->
                         val dur = usable * (w.length.coerceAtLeast(1) / totalChars)
                         val wt = WordTiming(w, cursor, cursor + dur)
@@ -278,7 +369,7 @@ object AudioPcmStitcher {
                 }
             }
             globalTimings.add(shiftedTimings)
-            cumulativeOffsetMs += exactDurationMs
+            cumulativeOffsetMs = sceneEndMs
         }
 
         val dryVoicePcm = unifiedStream.toByteArray()

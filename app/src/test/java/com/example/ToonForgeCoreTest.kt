@@ -1,8 +1,11 @@
 package com.example
 
+import com.example.art.AiHordeImageClient
+import com.example.art.EnvironmentRenderer
 import com.example.art.MagicByteValidator
 import com.example.data.BuiltInPrompts
 import com.example.llm.JsonSanitizer
+import com.example.llm.LlmDirectorClient
 import com.example.llm.MalformedSceneJsonException
 import com.example.llm.TagalogNarrationValidator
 import com.example.llm.UniversalModelDetector
@@ -13,8 +16,15 @@ import com.example.model.ActorHeadgear
 import com.example.model.ActorRole
 import com.example.model.AnimationStyle
 import com.example.model.CameraMotion
+import com.example.model.CharacterAge
+import com.example.model.CharacterGender
+import com.example.model.CharacterOutfit
 import com.example.model.CharacterPose
 import com.example.model.CutawayStage
+import com.example.model.CutawaySubject
+import com.example.model.DynamicDiagramType
+import com.example.model.EnvironmentTheme
+import com.example.model.FlowDirection
 import com.example.model.HandProp
 import com.example.model.HudWidget
 import com.example.model.MetaphorVisual
@@ -25,10 +35,12 @@ import com.example.model.SceneScript
 import com.example.model.ShotFraming
 import com.example.model.ShotType
 import com.example.model.StatusPill
+import com.example.model.StudioSettings
 import com.example.model.WordTiming
 import com.example.model.WorldFx
 import com.example.render.CameraController
 import com.example.render.CharacterSpriteProcessor
+import com.example.render.DynamicDiagramRenderer
 import com.example.render.MetaphorVisualRenderer
 import com.example.render.PixelCutawayRenderer
 import com.example.render.ProceduralPuppetEngine
@@ -161,7 +173,7 @@ class ToonForgeCoreTest {
         assertTrue(AnimationStyle.TECH_EXPLAINER.usesNetworkArt)
         assertEquals("HUD EXPLAINER", AnimationStyle.TECH_EXPLAINER.badge)
         assertEquals("Viral HUD & Motion Explainer", AnimationStyle.TECH_EXPLAINER.displayName)
-        assertFalse(AnimationStyle.CROSS_SECTION.usesNetworkArt)
+        assertTrue(AnimationStyle.CROSS_SECTION.usesNetworkArt)
         assertEquals("CUTAWAY 2D", AnimationStyle.CROSS_SECTION.badge)
 
         assertEquals(3, ProductionMode.entries.size)
@@ -361,9 +373,9 @@ class ToonForgeCoreTest {
     @Test
     fun `characterPoseHandPropShotTypeAndCameraControllerWorkCohesively`() {
         assertEquals(8, CharacterPose.entries.size)
-        assertEquals(6, HandProp.entries.size)
+        assertEquals(10, HandProp.entries.size)
         assertEquals(6, ShotType.entries.size)
-        assertEquals(-220f, ProceduralPuppetEngine.HUD_SAFE_LIFT_PX, 0.01f)
+        assertEquals(-230f, ProceduralPuppetEngine.HUD_SAFE_LIFT_PX, 0.01f)
 
         assertEquals(CharacterPose.WALK_ACROSS_LEFT_TO_RIGHT, CharacterPose.fromRaw("walk_across_left_to_right"))
         assertEquals(CharacterPose.TWO_CHARACTER_CONVERSATION, CharacterPose.fromRaw("TWO_CHARACTER_CONVERSATION"))
@@ -465,7 +477,7 @@ class ToonForgeCoreTest {
     fun `viral2dExplainerEnumsMetaphorsAndSchemaStayBackwardCompatible`() {
         assertEquals(6, ActorExpression.entries.size)
         assertEquals(4, ActorHeadgear.entries.size)
-        assertEquals(6, MetaphorVisual.entries.size)
+        assertEquals(14, MetaphorVisual.entries.size)
 
         assertFalse(AnimationStyle.VIRAL_2D_EXPLAINER.usesNetworkArt)
         assertEquals("2D VIRAL", AnimationStyle.VIRAL_2D_EXPLAINER.badge)
@@ -500,8 +512,15 @@ class ToonForgeCoreTest {
         assertEquals(MetaphorVisual.NONE, defaultScene.metaphorVisual)
 
         assertEquals(
-            MetaphorVisual.CHOMP_CHAIN,
+            MetaphorVisual.NONE,
             MetaphorVisualRenderer.resolveMetaphorVisual(defaultScene, AnimationStyle.VIRAL_2D_EXPLAINER)
+        )
+        assertEquals(
+            MetaphorVisual.CHOMP_CHAIN,
+            MetaphorVisualRenderer.resolveMetaphorVisual(
+                defaultScene.copy(metaphorVisual = MetaphorVisual.CHOMP_CHAIN),
+                AnimationStyle.VIRAL_2D_EXPLAINER
+            )
         )
         assertEquals(
             MetaphorVisual.NONE,
@@ -643,7 +662,7 @@ class ToonForgeCoreTest {
     @Test
     fun `pixelCutawayExplainer supports all 6 stages pointer callouts and 270x480 coordinate normalization`() {
         assertEquals(6, CutawayStage.entries.size)
-        assertFalse(AnimationStyle.PIXEL_CUTAWAY_EXPLAINER.usesNetworkArt)
+        assertTrue(AnimationStyle.PIXEL_CUTAWAY_EXPLAINER.usesNetworkArt)
         assertEquals("16-BIT PIXEL", AnimationStyle.PIXEL_CUTAWAY_EXPLAINER.badge)
         assertEquals(270, PixelCutawayRenderer.PIXEL_WIDTH)
         assertEquals(480, PixelCutawayRenderer.PIXEL_HEIGHT)
@@ -698,8 +717,365 @@ class ToonForgeCoreTest {
 
         val prompt = BuiltInPrompts.composeSystemPrompt("Base", 30, AnimationStyle.PIXEL_CUTAWAY_EXPLAINER)
         assertTrue(prompt.contains("\"cutaway_stage\""))
+        assertTrue(prompt.contains("\"cutaway_subject\""))
         assertTrue(prompt.contains("\"pointer_callouts\""))
         assertTrue(prompt.contains("STRAND_AND_VESSEL_REBUILD"))
         assertTrue(prompt.contains("SURFACE_HEALED_ZOOM_OUT"))
+    }
+
+    @Test
+    fun `v5MultiEnvironmentPollinationsCharacterCustomizationCutawaysAndMetaphorsWork`() {
+        // 1. Multi-Environment resolution + Pollinations keyless fallback config
+        assertEquals(11, EnvironmentTheme.entries.size)
+        assertEquals(
+            EnvironmentTheme.BRIGHT_MORNING_KITCHEN,
+            EnvironmentRenderer.resolveEnvironmentTheme(
+                prompt = "bright sunny morning kitchen with coffee cup on wooden table",
+                explicitTheme = null,
+                style = AnimationStyle.PAPER_DIORAMA
+            )
+        )
+        assertEquals(
+            EnvironmentTheme.SUNNY_MARKET_STREET,
+            EnvironmentRenderer.resolveEnvironmentTheme(
+                prompt = "busy palengke street with sari-sari store and sunshine",
+                explicitTheme = null,
+                style = AnimationStyle.FLAT_VECTOR
+            )
+        )
+        assertEquals(
+            EnvironmentTheme.COZY_BEDROOM_MIDNIGHT,
+            EnvironmentRenderer.resolveEnvironmentTheme(
+                prompt = "late night bedroom doomscrolling",
+                explicitTheme = null,
+                style = AnimationStyle.DARK_SUSPENSE
+            )
+        )
+        assertEquals(
+            EnvironmentTheme.BANK_VAULT_FINANCE,
+            EnvironmentRenderer.resolveEnvironmentTheme(
+                prompt = "kitchen table",
+                explicitTheme = EnvironmentTheme.BANK_VAULT_FINANCE,
+                style = AnimationStyle.PAPER_DIORAMA
+            )
+        )
+        assertEquals(25_000L, AiHordeImageClient.POLL_TIMEOUT_MS)
+        assertEquals(15L, AiHordeImageClient.POLLINATIONS_TIMEOUT_SEC)
+        val pollUrl = AiHordeImageClient.buildPollinationsUrl("sunny pinoy kitchen")
+        assertTrue(pollUrl.startsWith("https://image.pollinations.ai/prompt/"))
+        assertTrue(pollUrl.contains("width=540&height=960&nologo=true"))
+
+        // 2. Removed obsolete floating sky FX safely map to NONE + new hand props work
+        assertEquals(4, WorldFx.entries.size)
+        assertEquals(WorldFx.NONE, WorldFx.fromRaw("FLOATING_HOUSES"))
+        assertEquals(WorldFx.NONE, WorldFx.fromRaw("GIANT_HAND_GRAB"))
+        assertEquals(WorldFx.NONE, WorldFx.fromRaw("EGG_CRACK"))
+        assertEquals(HandProp.COFFEE_CUP, HandProp.fromRaw("coffee_cup"))
+        assertEquals(HandProp.BASKET_GOODS, HandProp.fromRaw("EGG_BASKET"))
+
+        // 3. Character appearance customization & pure-Kotlin hex color parser
+        assertEquals(2, CharacterGender.entries.size)
+        assertEquals(4, CharacterAge.entries.size)
+        val tinderaScene = SceneScript(
+            sceneId = 1,
+            tagalogNarration = "Ang sikreto ng matandang tindera sa palengke tuwing umaga.",
+            backgroundPrompt = "palengke morning",
+            cameraMotion = CameraMotion.STATIC,
+            actorRole = ActorRole.HERO,
+            actorAction = ActorAction.TALK_BOUNCE,
+            worldFx = WorldFx.NONE
+        )
+        assertEquals(CharacterGender.FEMALE, ProceduralPuppetEngine.resolveCharacterGender(tinderaScene))
+        assertEquals(CharacterAge.ELDERLY, ProceduralPuppetEngine.resolveCharacterAge(tinderaScene))
+        assertEquals(0xFFE11D48.toInt(), ProceduralPuppetEngine.parseHexColorOrNull("#E11D48"))
+        assertEquals(null, ProceduralPuppetEngine.parseHexColorOrNull("invalid_hex"))
+
+        // 4. 6-subject dynamic 16-bit cutaway resolution & pointer callouts
+        assertEquals(6, CutawaySubject.entries.size)
+        val brainScene = SceneScript(
+            sceneId = 2,
+            tagalogNarration = "Ano ang nangyayari sa utak at neuron mo kapag puro doomscrolling?",
+            backgroundPrompt = "brain synapse cutaway",
+            cameraMotion = CameraMotion.STATIC,
+            actorRole = ActorRole.NARRATOR,
+            actorAction = ActorAction.TALK_BOUNCE,
+            worldFx = WorldFx.NONE,
+            cutawayStage = CutawayStage.STRAND_AND_VESSEL_REBUILD
+        )
+        val resolvedBrainSubject = ProceduralPuppetEngine.resolveCutawaySubject(brainScene)
+        assertEquals(CutawaySubject.BRAIN_NEURON_SIGNAL, resolvedBrainSubject)
+        assertEquals(
+            "SYNAPSE BRIDGE",
+            ProceduralPuppetEngine.resolvePointerCallouts(brainScene, CutawayStage.STRAND_AND_VESSEL_REBUILD, resolvedBrainSubject)
+                .first().label
+        )
+
+        // 5. Expanded 14 MetaphorVisuals & topic matching
+        val moneyTreeScene = SceneScript(
+            sceneId = 1,
+            tagalogNarration = "Paano nagiging puno ng pera ang tamang tanim ng ipon?",
+            backgroundPrompt = "bright office",
+            cameraMotion = CameraMotion.STATIC,
+            actorRole = ActorRole.CHICKEN_MENTOR,
+            actorAction = ActorAction.POINT_STICK,
+            worldFx = WorldFx.COIN_RAIN
+        )
+        assertEquals(
+            MetaphorVisual.GROWING_MONEY_TREE,
+            MetaphorVisualRenderer.resolveMetaphorVisual(moneyTreeScene, AnimationStyle.VIRAL_2D_EXPLAINER)
+        )
+        val rocketScene = moneyTreeScene.copy(
+            tagalogNarration = "Paano gumagana ang Rule of 72 at compound interest chart?"
+        )
+        assertEquals(
+            MetaphorVisual.ROCKET_GROWTH_CHART,
+            MetaphorVisualRenderer.resolveMetaphorVisual(rocketScene, AnimationStyle.VIRAL_2D_EXPLAINER)
+        )
+        assertTrue(MetaphorVisualRenderer.isDiagramAlongsideCharacter(MetaphorVisual.CRACKING_EGG_CHICK))
+        assertTrue(MetaphorVisualRenderer.isDiagramAlongsideCharacter(MetaphorVisual.ROCKET_GROWTH_CHART))
+        assertTrue(MetaphorVisualRenderer.isDiagramAlongsideCharacter(MetaphorVisual.DOMINO_CHAIN_REACTION))
+
+        // 6. V5 Enum fromRaw, JsonSanitizer extraction & BuiltInPrompts schema checks (JVM-safe)
+        assertEquals(EnvironmentTheme.BRIGHT_MORNING_KITCHEN, EnvironmentTheme.fromRaw("bright_morning_kitchen"))
+        assertEquals(CutawaySubject.BATTERY_CIRCUIT_CHARGE, CutawaySubject.fromRaw("battery_circuit_charge"))
+        assertEquals(CharacterGender.FEMALE, CharacterGender.fromRaw("female"))
+        assertEquals(CharacterAge.ELDERLY, CharacterAge.fromRaw("elderly"))
+        assertEquals(MetaphorVisual.CRACKING_EGG_CHICK, MetaphorVisual.fromRaw("cracking_egg_chick"))
+        assertEquals(MetaphorVisual.ROCKET_GROWTH_CHART, MetaphorVisual.fromRaw("ROCKET_GROWTH_CHART"))
+        assertEquals(MetaphorVisual.DOMINO_CHAIN_REACTION, MetaphorVisual.fromRaw("domino_chain_reaction"))
+
+        val rawJson = """
+            ```json
+            [
+              {
+                "scene_id": 1,
+                "tagalog_narration": "Huwag umasa sa iisang kita lang dahil mabilis magbago ang buhay.",
+                "background_prompt": "bright morning kitchen with sunlight through window",
+                "camera_motion": "ZOOM_IN",
+                "actor_role": "HERO",
+                "actor_action": "TALK_BOUNCE",
+                "world_fx": "COIN_RAIN",
+                "environment_theme": "BRIGHT_MORNING_KITCHEN",
+                "cutaway_subject": "BATTERY_CIRCUIT_CHARGE",
+                "character_gender": "FEMALE",
+                "character_age": "YOUNG",
+                "outfit_color_hex": "#E11D48",
+                "hand_prop": "COFFEE_CUP",
+                "metaphor_visual": "CRACKING_EGG_CHICK"
+              }
+            ]
+            ```
+        """.trimIndent()
+        val extracted = JsonSanitizer.extractJsonArrayText(rawJson)
+        assertTrue(extracted.contains("\"environment_theme\": \"BRIGHT_MORNING_KITCHEN\""))
+        assertTrue(extracted.contains("\"cutaway_subject\": \"BATTERY_CIRCUIT_CHARGE\""))
+        assertTrue(extracted.contains("\"character_gender\": \"FEMALE\""))
+        assertTrue(extracted.contains("\"outfit_color_hex\": \"#E11D48\""))
+        assertTrue(extracted.contains("\"hand_prop\": \"COFFEE_CUP\""))
+
+        val v5Prompt = BuiltInPrompts.composeSystemPrompt("Base", 30, AnimationStyle.VIRAL_2D_EXPLAINER)
+        assertTrue(v5Prompt.contains("\"environment_theme\""))
+        assertTrue(v5Prompt.contains("\"character_gender\""))
+        assertTrue(v5Prompt.contains("\"character_age\""))
+        assertTrue(v5Prompt.contains("\"outfit_color_hex\""))
+        assertTrue(v5Prompt.contains("COFFEE_CUP"))
+        assertTrue(v5Prompt.contains("BASKET_GOODS"))
+        assertTrue(v5Prompt.contains("CRACKING_EGG_CHICK"))
+        assertFalse(v5Prompt.contains("FLOATING_HOUSES"))
+        assertFalse(v5Prompt.contains("GIANT_HAND_GRAB"))
+    }
+
+    @Test
+    fun `exactTargetDurationLockSystemCalculatesBudgetGuardsLengthAlignsPausesAndClampsSpeed`() {
+        // 1. Strict Spoken-Character & Scene Count Formula
+        val budget30 = LlmDirectorClient.calculateDurationBudget(30)
+        assertEquals(6, budget30.targetSceneCount) // (30 / 4.8).roundToInt() = 6
+        assertEquals(423, budget30.targetSpokenChars) // ((30 - 6*0.45) * 15.5).roundToInt() = 423
+        assertEquals(381, budget30.minChars)
+        assertEquals(457, budget30.maxChars)
+
+        val budget60 = LlmDirectorClient.calculateDurationBudget(60)
+        assertEquals(13, budget60.targetSceneCount) // (60 / 4.8).roundToInt() = 13
+        assertEquals(839, budget60.targetSpokenChars) // ((60 - 13*0.45) * 15.5).roundToInt() = 839
+
+        val contract = LlmDirectorClient.buildDurationContractBlock(budget30)
+        assertTrue(contract.contains("MANDATORY DURATION & LENGTH CONTRACT"))
+        assertTrue(contract.contains("EXACTLY 6 scenes"))
+        assertTrue(contract.contains("381 and 457"))
+
+        // 2. Pre-TTS expansion merge & overshoot trimming guard (preserving closing scene)
+        val shortScenes = (1..3).map { idx ->
+            SceneScript(
+                sceneId = idx,
+                tagalogNarration = "Maikling eksena $idx tungkol sa ipon.",
+                backgroundPrompt = "bright office",
+                cameraMotion = CameraMotion.STATIC,
+                actorRole = ActorRole.HERO,
+                actorAction = ActorAction.TALK_BOUNCE,
+                worldFx = WorldFx.NONE
+            )
+        }
+        val extraScenes = (1..3).map { idx ->
+            SceneScript(
+                sceneId = idx,
+                tagalogNarration = "Mas detalyadong paliwanag $idx kung paano nakakatulong ang pagtitipid araw-araw.",
+                backgroundPrompt = "sunny market",
+                cameraMotion = CameraMotion.ZOOM_IN,
+                actorRole = ActorRole.CHICKEN_MENTOR,
+                actorAction = ActorAction.POINT_STICK,
+                worldFx = WorldFx.COIN_RAIN
+            )
+        }
+        val merged = LlmDirectorClient.mergeExpandedScenes(shortScenes, extraScenes, budget30)
+        assertEquals(6, merged.size)
+        assertEquals(listOf(1, 2, 3, 4, 5, 6), merged.map { it.sceneId })
+
+        val oversizedScenes = (1..10).map { idx ->
+            SceneScript(
+                sceneId = idx,
+                tagalogNarration = if (idx == 10) {
+                    "Kaya simula ngayon, magtabi agad ng bente porsyento bago gumastos."
+                } else {
+                    "Napakahabang paliwanag bilang $idx tungkol sa maling diskarte sa pera at gastos ng marami sa atin ngayon."
+                },
+                backgroundPrompt = "office",
+                cameraMotion = CameraMotion.STATIC,
+                actorRole = ActorRole.HERO,
+                actorAction = ActorAction.TALK_BOUNCE,
+                worldFx = WorldFx.NONE
+            )
+        }
+        val trimmed = LlmDirectorClient.trimExcessScenesPreservingEnding(oversizedScenes, budget30)
+        assertTrue(trimmed.size < oversizedScenes.size)
+        assertTrue(LlmDirectorClient.totalSpokenChars(trimmed) <= (budget30.maxChars * 1.15).toInt())
+        assertEquals(oversizedScenes.last().tagalogNarration, trimmed.last().tagalogNarration)
+        assertEquals((1..trimmed.size).toList(), trimmed.map { it.sceneId })
+
+        // 3. Smart Inter-Scene Breathing Pauses (350..850ms) & <= 1200ms Outro Hold
+        val plan = AudioPcmStitcher.computeBreathingPauses(
+            sceneCount = 6,
+            totalSpeechMs = 26_600.0,
+            targetDurationMs = 30_000.0
+        )
+        assertEquals(5, plan.transitionPausesMs.size)
+        plan.transitionPausesMs.forEach { pause ->
+            assertTrue("Expected breathing pause in 350..850ms, got $pause", pause in 350.0..850.0)
+        }
+        assertTrue("Expected outro hold <= 1200ms, got ${plan.outroHoldMs}", plan.outroHoldMs in 0.0..1200.0)
+        assertEquals(3400.0, plan.totalAddedMs, 1.0)
+
+        // End-to-end stitchScenes alignment within +/- 1.5s of 30s target
+        val sceneSpeechBytes = ((26_600.0 / 6.0 / 1000.0) * 44100.0).toInt() * 2
+        val pcmChunks = List(6) { ByteArray(sceneSpeechBytes) }
+        val stitched = AudioPcmStitcher.stitchScenes(
+            decodedPcmPerScene = pcmChunks,
+            localTimingsPerScene = List(6) { emptyList() },
+            narrationPerScene = List(6) { "Isang maikling Tagalog sentence dito." },
+            targetDurationMs = 30_000.0
+        )
+        assertTrue(
+            "Expected aligned PCM duration within +/-1500ms of 30000ms, got ${stitched.totalDurationMs}",
+            abs(stitched.totalDurationMs - 30_000.0) <= 1500.0
+        )
+
+        // 4. Narration Speed bounds & StudioSettings default
+        assertEquals(1.0f, StudioSettings().narrationSpeed, 0.001f)
+        assertEquals(0.85, ElevenLabsClient.clampNarrationSpeed(0.50f), 0.001)
+        assertEquals(1.00, ElevenLabsClient.clampNarrationSpeed(1.00f), 0.001)
+        assertEquals(1.15, ElevenLabsClient.clampNarrationSpeed(1.50f), 0.001)
+    }
+
+    @Test
+    fun `v6TopicFirstDynamicEngineWardrobeCutawayAndDiagramsWork`() {
+        // 1. New V6 enums & backward-compatible aliases
+        assertEquals(7, CharacterOutfit.entries.size)
+        assertEquals(4, FlowDirection.entries.size)
+        assertEquals(6, DynamicDiagramType.entries.size)
+        assertEquals(4, CharacterAge.entries.size)
+        assertEquals(CharacterAge.YOUNG_ADULT, CharacterAge.fromRaw("YOUNG"))
+        assertEquals(CharacterAge.MIDDLE_AGED, CharacterAge.fromRaw("ADULT"))
+        assertEquals(CharacterAge.CHILD, CharacterAge.fromRaw("TEEN"))
+        assertEquals(CharacterOutfit.MEDICAL_SCRUBS, CharacterOutfit.fromRaw("medical_scrubs"))
+        assertEquals(CharacterOutfit.WORK_UNIFORM, CharacterOutfit.fromRaw("work_uniform"))
+        assertEquals(FlowDirection.RADIAL_BURST, FlowDirection.fromRaw("radial_burst"))
+        assertEquals(DynamicDiagramType.BEFORE_AFTER_SPLIT, DynamicDiagramType.fromRaw("before_after_split"))
+        assertEquals(DynamicDiagramType.SCALE_WEIGH_OFF, DynamicDiagramType.fromRaw("SCALE_WEIGH_OFF"))
+        assertEquals(HandProp.BOOK_NOTEBOOK, HandProp.fromRaw("book_notebook"))
+        assertEquals(HandProp.TOOL_WRENCH, HandProp.fromRaw("tool_wrench"))
+        assertEquals(EnvironmentTheme.HOSPITAL_CLINIC, EnvironmentTheme.fromRaw("hospital_clinic"))
+
+        // 2. Topic-First Decoupling: neutral topics do NOT get forced skin wounds or protein chains
+        val studyScene = SceneScript(
+            sceneId = 1,
+            tagalogNarration = "Paano gumawa ng maayos na study schedule ang isang estudyante?",
+            backgroundPrompt = "bright classroom chalkboard",
+            cameraMotion = CameraMotion.STATIC,
+            actorRole = ActorRole.HERO,
+            actorAction = ActorAction.POINT_STICK,
+            worldFx = WorldFx.NONE
+        )
+        assertEquals(null, ProceduralPuppetEngine.resolveCutawaySubjectOrNull(studyScene))
+        assertEquals(MetaphorVisual.NONE, MetaphorVisualRenderer.resolveMetaphorVisual(studyScene, AnimationStyle.VIRAL_2D_EXPLAINER))
+        assertEquals(CharacterOutfit.STUDENT_UNIFORM, ProceduralPuppetEngine.resolveCharacterOutfit(studyScene))
+        assertEquals(CharacterAge.YOUNG_ADULT, ProceduralPuppetEngine.resolveCharacterAge(studyScene))
+
+        // Hospital/doctor scene routes to HOSPITAL_CLINIC + MEDICAL_SCRUBS
+        assertEquals(
+            EnvironmentTheme.HOSPITAL_CLINIC,
+            EnvironmentRenderer.resolveEnvironmentTheme(
+                prompt = "modern hospital clinic examination room with doctor",
+                explicitTheme = null,
+                style = AnimationStyle.PAPER_DIORAMA
+            )
+        )
+        val doctorScene = studyScene.copy(
+            tagalogNarration = "Payo ng doktor sa klinika tungkol sa tamang pag-inom ng tubig.",
+            backgroundPrompt = "hospital clinic room"
+        )
+        assertEquals(CharacterOutfit.MEDICAL_SCRUBS, ProceduralPuppetEngine.resolveCharacterOutfit(doctorScene))
+
+        // 3. DynamicDiagramRenderer routes data-driven diagrams cleanly
+        val compareScene = studyScene.copy(
+            leftLabel = "WALANG PLANO",
+            rightLabel = "MAY SCHEDULE"
+        )
+        assertEquals(
+            DynamicDiagramType.BEFORE_AFTER_SPLIT,
+            DynamicDiagramRenderer.resolveDiagramType(compareScene, AnimationStyle.VIRAL_2D_EXPLAINER)
+        )
+        assertTrue(DynamicDiagramRenderer.isDiagramAlongsideCharacter(DynamicDiagramType.BEFORE_AFTER_SPLIT))
+
+        val stepsScene = studyScene.copy(
+            step1 = "Gumawa ng listahan",
+            step2 = "Mag-focus 25 mins",
+            step3 = "Magpahinga 5 mins"
+        )
+        assertEquals(
+            DynamicDiagramType.STEP_FLOW_ARROWS,
+            DynamicDiagramRenderer.resolveDiagramType(stepsScene, AnimationStyle.PAPER_DIORAMA)
+        )
+
+        val meterScene = studyScene.copy(
+            hudLabel = "FOCUS SCORE",
+            hudFromValue = 25,
+            hudToValue = 92
+        )
+        assertEquals(
+            DynamicDiagramType.METER_GAUGE_SHIFT,
+            DynamicDiagramRenderer.resolveDiagramType(meterScene, AnimationStyle.VIRAL_2D_EXPLAINER)
+        )
+        assertFalse(DynamicDiagramRenderer.isDiagramAlongsideCharacter(DynamicDiagramType.SUNBURST_HERO_CALLOUT))
+
+        // 4. BuiltInPrompts Topic-First Decoupling & V6 JSON schema verification
+        val v6Prompt = BuiltInPrompts.composeSystemPrompt("Base", 30, AnimationStyle.PIXEL_CUTAWAY_EXPLAINER)
+        assertTrue(v6Prompt.contains("TOPIC-FIRST DECOUPLING CONTRACT"))
+        assertTrue(v6Prompt.contains("\"character_outfit\""))
+        assertTrue(v6Prompt.contains("\"hair_color_hex\""))
+        assertTrue(v6Prompt.contains("\"cutaway_diagram_prompt\""))
+        assertTrue(v6Prompt.contains("\"flow_direction\""))
+        assertTrue(v6Prompt.contains("\"diagram_type\""))
+        assertTrue(v6Prompt.contains("\"left_label\""))
+        assertTrue(v6Prompt.contains("\"step_1\""))
+        assertTrue(v6Prompt.contains("HOSPITAL_CLINIC"))
     }
 }

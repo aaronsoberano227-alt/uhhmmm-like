@@ -23,6 +23,7 @@ import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
+import kotlin.math.roundToInt
 
 data class TtsSynthesisOutput(
     val audioBytes: ByteArray,
@@ -138,9 +139,11 @@ class ElevenLabsClient(
         previousText: String? = null,
         nextText: String? = null,
         ttsBaseUrl: String = DEFAULT_TTS_BASE_URL,
+        narrationSpeed: Float = 1.0f,
         onKeyStatusUpdate: suspend (ElevenLabsKeyEntry) -> Unit
     ): TtsSynthesisOutput = withContext(Dispatchers.IO) {
         val cleanBase = cleanTtsBaseUrl(ttsBaseUrl)
+        val clampedSpeed = narrationSpeed.coerceIn(MIN_NARRATION_SPEED, MAX_NARRATION_SPEED)
         val cleanTagalog = com.example.llm.TagalogNarrationValidator.cleanForTts(rawTagalogNarration)
         com.example.llm.TagalogNarrationValidator.validateOrThrow(cleanTagalog)
         val normalizedText = TagalogPhoneticNormalizer.normalize(cleanTagalog, customDictionary)
@@ -163,7 +166,8 @@ class ElevenLabsClient(
                 return@withContext synthesizeOfflineFallback(
                     normalizedText = normalizedText,
                     displayWords = displayWords,
-                    tempCacheDir = tempCacheDir
+                    tempCacheDir = tempCacheDir,
+                    narrationSpeed = clampedSpeed
                 )
             } else {
                 throw IOException("No ElevenLabs API keys configured. Add a key in API & Settings.")
@@ -186,17 +190,12 @@ class ElevenLabsClient(
             }
 
             try {
-                val payload = JSONObject().apply {
-                    put("text", normalizedText)
-                    put("model_id", "eleven_multilingual_v2")
-                    if (!normPrev.isNullOrBlank()) put("previous_text", normPrev)
-                    if (!normNext.isNullOrBlank()) put("next_text", normNext)
-                    put("voice_settings", JSONObject().apply {
-                        put("stability", 0.45)
-                        put("similarity_boost", 0.78)
-                        put("style", 0.35)
-                    })
-                }
+                val payload = buildTtsRequestPayload(
+                    normalizedText = normalizedText,
+                    normPrev = normPrev,
+                    normNext = normNext,
+                    narrationSpeed = clampedSpeed
+                )
 
                 val req = Request.Builder()
                     .url("$cleanBase/v1/text-to-speech/${voiceId.trim()}/with-timestamps")
@@ -245,7 +244,8 @@ class ElevenLabsClient(
             return@withContext synthesizeOfflineFallback(
                 normalizedText = normalizedText,
                 displayWords = displayWords,
-                tempCacheDir = tempCacheDir
+                tempCacheDir = tempCacheDir,
+                narrationSpeed = clampedSpeed
             )
         }
         throw IOException("All ElevenLabs keys failed or exhausted: ${errors.joinToString(" | ")}")
@@ -309,22 +309,26 @@ class ElevenLabsClient(
     private suspend fun synthesizeOfflineFallback(
         normalizedText: String,
         displayWords: List<String>,
-        tempCacheDir: File
+        tempCacheDir: File,
+        narrationSpeed: Float = 1.0f
     ): TtsSynthesisOutput {
         val wavFile = File(tempCacheDir, "tts_offline_${UUID.randomUUID()}.wav")
         return try {
-            val synthesizedOk = synthesizeWithAndroidTts(normalizedText, wavFile)
+            val synthesizedOk = synthesizeWithAndroidTts(normalizedText, wavFile, narrationSpeed)
             if (synthesizedOk && wavFile.exists() && wavFile.length() > 44) {
                 val wavBytes = wavFile.readBytes()
                 TtsSynthesisOutput(
                     audioBytes = wavBytes,
                     isWav = true,
-                    localWordTimings = buildEvenWordTimings(displayWords, estimateSpeechDurationMs(displayWords)),
+                    localWordTimings = buildEvenWordTimings(
+                        displayWords,
+                        estimateSpeechDurationMs(displayWords, narrationSpeed)
+                    ),
                     keyUsed = "Offline Android TTS"
                 )
             } else {
                 // Silent paced PCM WAV fallback so rendering still works on headless devices without TTS voices
-                val durMs = estimateSpeechDurationMs(displayWords)
+                val durMs = estimateSpeechDurationMs(displayWords, narrationSpeed)
                 val silentWav = createSilentWav44100Mono(durMs)
                 TtsSynthesisOutput(
                     audioBytes = silentWav,
@@ -338,7 +342,11 @@ class ElevenLabsClient(
         }
     }
 
-    private suspend fun synthesizeWithAndroidTts(text: String, outFile: File): Boolean =
+    private suspend fun synthesizeWithAndroidTts(
+        text: String,
+        outFile: File,
+        narrationSpeed: Float = 1.0f
+    ): Boolean =
         suspendCancellableCoroutine { cont ->
             var tts: TextToSpeech? = null
             var resumed = false
@@ -364,7 +372,7 @@ class ElevenLabsClient(
                 if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
                     engine.setLanguage(Locale.US)
                 }
-                engine.setSpeechRate(1.05f)
+                engine.setSpeechRate(narrationSpeed.coerceIn(MIN_NARRATION_SPEED, MAX_NARRATION_SPEED))
                 val uttId = UUID.randomUUID().toString()
                 engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {}
@@ -394,8 +402,9 @@ class ElevenLabsClient(
             }
         }
 
-    private fun estimateSpeechDurationMs(words: List<String>): Double {
-        return (words.size * 380.0).coerceIn(3000.0, 6000.0)
+    private fun estimateSpeechDurationMs(words: List<String>, narrationSpeed: Float = 1.0f): Double {
+        val safeSpeed = narrationSpeed.coerceIn(MIN_NARRATION_SPEED, MAX_NARRATION_SPEED).toDouble()
+        return ((words.size * 380.0) / safeSpeed).coerceIn(2500.0, 7000.0)
     }
 
     private fun buildEvenWordTimings(words: List<String>, totalMs: Double): List<WordTiming> {
@@ -448,6 +457,34 @@ class ElevenLabsClient(
 
     companion object {
         const val DEFAULT_TTS_BASE_URL = "https://api.elevenlabs.io"
+        const val MIN_NARRATION_SPEED = 0.85f
+        const val MAX_NARRATION_SPEED = 1.15f
+
+        fun clampNarrationSpeed(raw: Float): Double {
+            val clamped = raw.coerceIn(MIN_NARRATION_SPEED, MAX_NARRATION_SPEED)
+            return (clamped * 100f).roundToInt() / 100.0
+        }
+
+        fun buildTtsRequestPayload(
+            normalizedText: String,
+            normPrev: String?,
+            normNext: String?,
+            narrationSpeed: Float = 1.0f
+        ): JSONObject {
+            val speedDouble = clampNarrationSpeed(narrationSpeed)
+            return JSONObject().apply {
+                put("text", normalizedText)
+                put("model_id", "eleven_multilingual_v2")
+                if (!normPrev.isNullOrBlank()) put("previous_text", normPrev)
+                if (!normNext.isNullOrBlank()) put("next_text", normNext)
+                put("voice_settings", JSONObject().apply {
+                    put("stability", 0.45)
+                    put("similarity_boost", 0.78)
+                    put("style", 0.35)
+                    put("speed", speedDouble)
+                })
+            }
+        }
 
         fun cleanTtsBaseUrl(raw: String): String {
             var clean = raw.trim().trimEnd('/')

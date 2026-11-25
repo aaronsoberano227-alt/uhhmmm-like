@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.model.ElevenLabsKeyEntry
@@ -48,6 +49,7 @@ class SettingsDataStore(private val context: Context) {
         val LLM_API_KEY = stringPreferencesKey("llm_api_key")
         val SELECTED_MODEL_ID = stringPreferencesKey("selected_model_id")
         val DETECTED_CHAT_BASE_URL = stringPreferencesKey("detected_chat_base_url")
+        val NARRATION_SPEED = floatPreferencesKey("narration_speed")
     }
 
     val settingsFlow: Flow<StudioSettings> = context.toonForgeDataStore.data.map { prefs ->
@@ -85,7 +87,8 @@ class SettingsDataStore(private val context: Context) {
             spriteStickerOutline = prefs[Keys.SPRITE_STICKER_OUTLINE] ?: true,
             customBgmPath = prefs[Keys.CUSTOM_BGM_PATH] ?: "",
             customBgmName = prefs[Keys.CUSTOM_BGM_NAME] ?: "",
-            pronunciationDictionary = parsePronunciationDict(prefs[Keys.PRONUNCIATION_DICT_JSON])
+            pronunciationDictionary = parsePronunciationDict(prefs[Keys.PRONUNCIATION_DICT_JSON]),
+            narrationSpeed = (prefs[Keys.NARRATION_SPEED] ?: 1.0f).coerceIn(0.85f, 1.15f)
         )
     }
 
@@ -209,7 +212,8 @@ class SettingsDataStore(private val context: Context) {
         llmApiKey: String = customApiKey,
         selectedModelId: String = customModel,
         detectedChatBaseUrl: String = "",
-        ttsBaseUrl: String = "https://api.elevenlabs.io"
+        ttsBaseUrl: String = "https://api.elevenlabs.io",
+        narrationSpeed: Float? = null
     ) {
         context.toonForgeDataStore.edit { prefs ->
             prefs[Keys.GROQ_API_KEY] = groqApiKey.trim()
@@ -224,6 +228,15 @@ class SettingsDataStore(private val context: Context) {
             prefs[Keys.TTS_BASE_URL] = ttsBaseUrl.trim().ifBlank { "https://api.elevenlabs.io" }
             prefs[Keys.AI_HORDE_KEY] = aiHordeKey.trim().ifBlank { "0000000000" }
             prefs[Keys.ALLOW_OFFLINE_TTS_FALLBACK] = allowOfflineTtsFallback
+            if (narrationSpeed != null) {
+                prefs[Keys.NARRATION_SPEED] = narrationSpeed.coerceIn(0.85f, 1.15f)
+            }
+        }
+    }
+
+    suspend fun setNarrationSpeed(speed: Float) {
+        context.toonForgeDataStore.edit { prefs ->
+            prefs[Keys.NARRATION_SPEED] = speed.coerceIn(0.85f, 1.15f)
         }
     }
 

@@ -17,8 +17,12 @@ import com.example.model.ActorExpression
 import com.example.model.ActorHeadgear
 import com.example.model.ActorRole
 import com.example.model.AnimationStyle
+import com.example.model.CharacterAge
+import com.example.model.CharacterGender
+import com.example.model.CharacterOutfit
 import com.example.model.CharacterPose
 import com.example.model.CutawayStage
+import com.example.model.CutawaySubject
 import com.example.model.HandProp
 import com.example.model.HudWidget
 import com.example.model.PointerCallout
@@ -33,7 +37,7 @@ import kotlin.math.sin
 
 object ProceduralPuppetEngine {
 
-    const val HUD_SAFE_LIFT_PX = -220f
+    const val HUD_SAFE_LIFT_PX = -230f
 
     private data class RigPose(
         val offsetX: Float = 0f,
@@ -68,7 +72,12 @@ object ProceduralPuppetEngine {
         val tearDropLevel: Float = 0f,
         val emoteType: Int = 0, // 0=none, 1=sweatdrop, 2=anger/shock, 3=sparkles
         val expression: ActorExpression = ActorExpression.HAPPY_TALK,
-        val headgear: ActorHeadgear = ActorHeadgear.NONE
+        val headgear: ActorHeadgear = ActorHeadgear.NONE,
+        val gender: CharacterGender = CharacterGender.MALE,
+        val age: CharacterAge = CharacterAge.MIDDLE_AGED,
+        val outfit: CharacterOutfit = CharacterOutfit.CASUAL_TSHIRT,
+        val outfitColorHex: String = "",
+        val hairColorHex: String = ""
     )
 
     private data class RolePalette(
@@ -153,19 +162,104 @@ object ProceduralPuppetEngine {
         }
     }
 
-    fun resolveCutawayStage(scene: SceneScript): CutawayStage {
-        scene.cutawayStage?.let { return it }
+    fun resolveCutawaySubjectOrNull(scene: SceneScript): CutawaySubject? {
+        scene.cutawaySubject?.let { return it }
+        val text = "${scene.tagalogNarration} ${scene.backgroundPrompt} ${scene.cutawayDiagramPrompt} ${scene.topicPillLabel} ${scene.calloutBanner}".lowercase()
+        return when {
+            text.contains("utak") || text.contains("brain") || text.contains("neuron") ||
+                text.contains("doomscroll") || text.contains("dopamine") || text.contains("synapse") -> CutawaySubject.BRAIN_NEURON_SIGNAL
+            text.contains("ngipin") || text.contains("tooth") || text.contains("teeth") ||
+                text.contains("enamel") || text.contains("cavity") || text.contains("toothache") -> CutawaySubject.TOOTH_ENAMEL_DECAY
+            text.contains("puso") || text.contains("heart") || text.contains("artery") ||
+                text.contains("cholesterol") || text.contains("blood pressure") -> CutawaySubject.HEART_ARTERY_FLOW
+            text.contains("baterya") || text.contains("battery") || text.contains("circuit") ||
+                text.contains("kuryente") || text.contains("volt") || text.contains("chip") -> CutawaySubject.BATTERY_CIRCUIT_CHARGE
+            text.contains("halaman") || text.contains("puno") || text.contains("lupa") ||
+                text.contains("soil") || text.contains("root") || text.contains("binhi") ||
+                text.contains("seed") || text.contains("plant") -> CutawaySubject.SOIL_ROOT_GROWTH
+            text.contains("sugat") || text.contains("wound") || text.contains("balat") ||
+                text.contains("epidermis") || text.contains("scab") || text.contains("white blood") -> CutawaySubject.SKIN_WOUND_HEALING
+            else -> null
+        }
+    }
+
+    fun resolveCutawaySubject(scene: SceneScript): CutawaySubject {
+        return resolveCutawaySubjectOrNull(scene) ?: CutawaySubject.SKIN_WOUND_HEALING
+    }
+
+    fun resolveCharacterGender(scene: SceneScript): CharacterGender {
+        scene.characterGender?.let { return it }
+        val text = "${scene.tagalogNarration} ${scene.backgroundPrompt}".lowercase()
+        return if (
+            text.contains("nanay") || text.contains("lola") || text.contains("ate ") ||
+            text.contains("babae") || text.contains("tindera") || text.contains("dalaga") ||
+            text.contains("mother") || text.contains("woman") || text.contains("girl") ||
+            text.contains("nurse") || text.contains("queen")
+        ) {
+            CharacterGender.FEMALE
+        } else {
+            CharacterGender.MALE
+        }
+    }
+
+    fun resolveCharacterAge(scene: SceneScript): CharacterAge {
+        scene.characterAge?.let { return it }
         val text = "${scene.tagalogNarration} ${scene.backgroundPrompt}".lowercase()
         return when {
-            text.contains("heal") || text.contains("galing") || text.contains("sarado") || text.contains("langib") || text.contains("scab") ->
+            text.contains("matanda") || text.contains("lola") || text.contains("lolo") ||
+                text.contains("elderly") || text.contains("old ") || text.contains("senior") ||
+                text.contains("retire") -> CharacterAge.ELDERLY
+            text.contains("bata") || text.contains("kid") || text.contains("pupil") ||
+                text.contains("child") -> CharacterAge.CHILD
+            text.contains("estudyante") || text.contains("student") || text.contains("teen") ||
+                text.contains("young") || text.contains("kabataan") -> CharacterAge.YOUNG_ADULT
+            else -> CharacterAge.MIDDLE_AGED
+        }
+    }
+
+    fun resolveCharacterOutfit(scene: SceneScript): CharacterOutfit {
+        scene.characterOutfit?.let { return it }
+        val text = "${scene.tagalogNarration} ${scene.backgroundPrompt}".lowercase()
+        return when {
+            text.contains("doktor") || text.contains("doctor") || text.contains("nurse") ||
+                text.contains("nars") || text.contains("hospital") || text.contains("clinic") ||
+                text.contains("klinika") -> CharacterOutfit.MEDICAL_SCRUBS
+            text.contains("tindera") || text.contains("palengke") || text.contains("market") ||
+                text.contains("kusina") || text.contains("kitchen") || text.contains("luto") ||
+                text.contains("apron") -> CharacterOutfit.MARKET_APRON
+            text.contains("estudyante") || text.contains("student") || text.contains("school") ||
+                text.contains("paaralan") || text.contains("classroom") || text.contains("pupil") -> CharacterOutfit.STUDENT_UNIFORM
+            text.contains("mechanic") || text.contains("mekaniko") || text.contains("factory") ||
+                text.contains("construction") || text.contains("trabahador") || text.contains("wrench") -> CharacterOutfit.WORK_UNIFORM
+            text.contains("hoodie") || text.contains("doomscroll") || text.contains("gamer") ||
+                text.contains("bedroom") -> CharacterOutfit.HOODIE
+            text.contains("opisina") || text.contains("office") || text.contains("bank") ||
+                text.contains("bangko") || text.contains("ceo") || scene.actorRole == ActorRole.RICH_MAN -> CharacterOutfit.OFFICE_SUIT
+            else -> CharacterOutfit.CASUAL_TSHIRT
+        }
+    }
+
+    fun parseHexColorOrNull(hex: String?): Int? {
+        val raw = hex?.trim()?.removePrefix("#").orEmpty()
+        if (raw.length != 6 && raw.length != 8) return null
+        val parsed = raw.toLongOrNull(16) ?: return null
+        val argb = if (raw.length == 6) (0xFF000000L or parsed) else parsed
+        return argb.toInt()
+    }
+
+    fun resolveCutawayStage(scene: SceneScript): CutawayStage {
+        scene.cutawayStage?.let { return it }
+        val text = "${scene.tagalogNarration} ${scene.backgroundPrompt} ${scene.cutawayDiagramPrompt}".lowercase()
+        return when {
+            text.contains("heal") || text.contains("galing") || text.contains("sarado") || text.contains("langib") || text.contains("scab") || text.contains("bloom") ->
                 CutawayStage.SURFACE_HEALED_ZOOM_OUT
-            text.contains("white blood") || text.contains("immune") || text.contains("linis") || text.contains("bakterya") ->
+            text.contains("white blood") || text.contains("immune") || text.contains("linis") || text.contains("bakterya") || text.contains("plaque") || text.contains("overload") ->
                 CutawayStage.IMMUNE_CLEANUP
-            text.contains("vessel") || text.contains("ugat") || text.contains("fibrin") || text.contains("strand") || text.contains("rebuild") ->
+            text.contains("vessel") || text.contains("ugat") || text.contains("fibrin") || text.contains("strand") || text.contains("rebuild") || text.contains("signal") || text.contains("charge") ->
                 CutawayStage.STRAND_AND_VESSEL_REBUILD
-            text.contains("migrate") || text.contains("migration") || text.contains("repair cell") || text.contains("dikit") || text.contains("cell") ->
+            text.contains("migrate") || text.contains("migration") || text.contains("repair cell") || text.contains("dikit") || text.contains("cell") || text.contains("flow") ->
                 CutawayStage.CELL_MIGRATION_CLOSE
-            text.contains("sugat") || text.contains("damage") || text.contains("dugo") || text.contains("biyak") || scene.statusPill == StatusPill.PROBLEM ->
+            text.contains("sugat") || text.contains("damage") || text.contains("dugo") || text.contains("biyak") || text.contains("sira") || text.contains("decay") || scene.statusPill == StatusPill.PROBLEM ->
                 CutawayStage.CROSS_SECTION_DAMAGE
             else -> CutawayStage.entries[(scene.sceneId - 1).coerceAtLeast(0) % CutawayStage.entries.size]
         }
@@ -173,7 +267,8 @@ object ProceduralPuppetEngine {
 
     fun resolvePointerCallouts(
         scene: SceneScript,
-        resolvedStage: CutawayStage = resolveCutawayStage(scene)
+        resolvedStage: CutawayStage = resolveCutawayStage(scene),
+        resolvedSubject: CutawaySubject? = resolveCutawaySubjectOrNull(scene)
     ): List<PointerCallout> {
         if (scene.pointerCallouts.isNotEmpty()) {
             return scene.pointerCallouts
@@ -181,30 +276,172 @@ object ProceduralPuppetEngine {
                 .take(2)
                 .map { it.copy(label = it.label.trim().uppercase()) }
         }
-        return when (resolvedStage) {
-            CutawayStage.SURFACE_ZOOM_IN -> listOf(
-                PointerCallout("EPIDERMIS SURFACE", 135f, 126f)
+        if (resolvedSubject == null) {
+            val topLabel = scene.topicPillLabel.ifBlank { scene.calloutBanner }.trim().uppercase()
+                .ifBlank {
+                    scene.tagalogNarration
+                        .split(Regex("\\s+"))
+                        .filter { it.length >= 5 }
+                        .take(2)
+                        .joinToString(" ")
+                        .uppercase()
+                        .ifBlank { "KEY LAYER" }
+                }
+            return listOf(
+                PointerCallout(topLabel.take(20), 135f, 165f)
             )
-            CutawayStage.CROSS_SECTION_DAMAGE -> listOf(
-                PointerCallout("TISSUE BREACH", 135f, 146f),
-                PointerCallout("BLOOD VESSEL", 92f, 246f)
-            )
-            CutawayStage.IMMUNE_CLEANUP -> listOf(
-                PointerCallout("WHITE BLOOD CELLS", 132f, 174f),
-                PointerCallout("RED BLOOD CELLS", 184f, 248f)
-            )
-            CutawayStage.STRAND_AND_VESSEL_REBUILD -> listOf(
-                PointerCallout("FIBRIN STRANDS", 135f, 166f),
-                PointerCallout("NEW BLOOD VESSELS", 148f, 218f)
-            )
-            CutawayStage.CELL_MIGRATION_CLOSE -> listOf(
-                PointerCallout("MIGRATING CELLS", 118f, 152f),
-                PointerCallout("ADIPOSE BASE", 188f, 316f)
-            )
-            CutawayStage.SURFACE_HEALED_ZOOM_OUT -> listOf(
-                PointerCallout("CRACKED SCAB", 135f, 84f),
-                PointerCallout("HEALED", 135f, 122f)
-            )
+        }
+        return when (resolvedSubject) {
+            CutawaySubject.SKIN_WOUND_HEALING -> when (resolvedStage) {
+                CutawayStage.SURFACE_ZOOM_IN -> listOf(
+                    PointerCallout("EPIDERMIS SURFACE", 135f, 126f)
+                )
+                CutawayStage.CROSS_SECTION_DAMAGE -> listOf(
+                    PointerCallout("TISSUE BREACH", 135f, 146f),
+                    PointerCallout("BLOOD VESSEL", 92f, 246f)
+                )
+                CutawayStage.IMMUNE_CLEANUP -> listOf(
+                    PointerCallout("WHITE BLOOD CELLS", 132f, 174f),
+                    PointerCallout("RED BLOOD CELLS", 184f, 248f)
+                )
+                CutawayStage.STRAND_AND_VESSEL_REBUILD -> listOf(
+                    PointerCallout("FIBRIN STRANDS", 135f, 166f),
+                    PointerCallout("NEW BLOOD VESSELS", 148f, 218f)
+                )
+                CutawayStage.CELL_MIGRATION_CLOSE -> listOf(
+                    PointerCallout("MIGRATING CELLS", 118f, 152f),
+                    PointerCallout("ADIPOSE BASE", 188f, 316f)
+                )
+                CutawayStage.SURFACE_HEALED_ZOOM_OUT -> listOf(
+                    PointerCallout("CRACKED SCAB", 135f, 84f),
+                    PointerCallout("HEALED", 135f, 122f)
+                )
+            }
+            CutawaySubject.BRAIN_NEURON_SIGNAL -> when (resolvedStage) {
+                CutawayStage.SURFACE_ZOOM_IN -> listOf(
+                    PointerCallout("CORTEX FOLDS", 135f, 128f)
+                )
+                CutawayStage.CROSS_SECTION_DAMAGE -> listOf(
+                    PointerCallout("DOPAMINE SPIKE", 126f, 156f),
+                    PointerCallout("SIGNAL NOISE", 172f, 242f)
+                )
+                CutawayStage.IMMUNE_CLEANUP -> listOf(
+                    PointerCallout("GLIAL CLEANUP", 128f, 178f),
+                    PointerCallout("AXON SHEATH", 178f, 246f)
+                )
+                CutawayStage.STRAND_AND_VESSEL_REBUILD -> listOf(
+                    PointerCallout("SYNAPSE BRIDGE", 135f, 174f),
+                    PointerCallout("NEURAL PATHWAY", 156f, 232f)
+                )
+                CutawayStage.CELL_MIGRATION_CLOSE -> listOf(
+                    PointerCallout("MYELIN REPAIR", 122f, 168f),
+                    PointerCallout("STEADY PULSE", 182f, 286f)
+                )
+                CutawayStage.SURFACE_HEALED_ZOOM_OUT -> listOf(
+                    PointerCallout("BALANCED FOCUS", 135f, 126f),
+                    PointerCallout("HEALED", 135f, 200f)
+                )
+            }
+            CutawaySubject.TOOTH_ENAMEL_DECAY -> when (resolvedStage) {
+                CutawayStage.SURFACE_ZOOM_IN -> listOf(
+                    PointerCallout("ENAMEL CROWN", 135f, 128f)
+                )
+                CutawayStage.CROSS_SECTION_DAMAGE -> listOf(
+                    PointerCallout("ACID CAVITY", 135f, 146f),
+                    PointerCallout("DENTIN LAYER", 96f, 224f)
+                )
+                CutawayStage.IMMUNE_CLEANUP -> listOf(
+                    PointerCallout("FLUORIDE SHIELD", 135f, 150f),
+                    PointerCallout("PULP NERVE", 152f, 274f)
+                )
+                CutawayStage.STRAND_AND_VESSEL_REBUILD -> listOf(
+                    PointerCallout("MINERAL MATRIX", 135f, 162f),
+                    PointerCallout("DENTIN TUBULES", 172f, 232f)
+                )
+                CutawayStage.CELL_MIGRATION_CLOSE -> listOf(
+                    PointerCallout("ENAMEL SEAL", 135f, 140f),
+                    PointerCallout("HEALTHY PULP", 135f, 276f)
+                )
+                CutawayStage.SURFACE_HEALED_ZOOM_OUT -> listOf(
+                    PointerCallout("SEALED CROWN", 135f, 120f),
+                    PointerCallout("HEALED", 135f, 166f)
+                )
+            }
+            CutawaySubject.HEART_ARTERY_FLOW -> when (resolvedStage) {
+                CutawayStage.SURFACE_ZOOM_IN -> listOf(
+                    PointerCallout("CORONARY WALL", 135f, 134f)
+                )
+                CutawayStage.CROSS_SECTION_DAMAGE -> listOf(
+                    PointerCallout("PLAQUE BUILDUP", 135f, 172f),
+                    PointerCallout("NARROWED LUMEN", 135f, 234f)
+                )
+                CutawayStage.IMMUNE_CLEANUP -> listOf(
+                    PointerCallout("LIPID REMOVAL", 128f, 186f),
+                    PointerCallout("BLOOD STREAM", 182f, 238f)
+                )
+                CutawayStage.STRAND_AND_VESSEL_REBUILD -> listOf(
+                    PointerCallout("ELASTIC LINING", 135f, 174f),
+                    PointerCallout("OXYGEN FLOW", 162f, 236f)
+                )
+                CutawayStage.CELL_MIGRATION_CLOSE -> listOf(
+                    PointerCallout("CLEAR ARTERY", 135f, 224f),
+                    PointerCallout("MUSCLE WALL", 176f, 304f)
+                )
+                CutawayStage.SURFACE_HEALED_ZOOM_OUT -> listOf(
+                    PointerCallout("OPEN VESSEL", 135f, 176f),
+                    PointerCallout("HEALED", 135f, 236f)
+                )
+            }
+            CutawaySubject.BATTERY_CIRCUIT_CHARGE -> when (resolvedStage) {
+                CutawayStage.SURFACE_ZOOM_IN -> listOf(
+                    PointerCallout("ALUMINUM CASING", 135f, 126f)
+                )
+                CutawayStage.CROSS_SECTION_DAMAGE -> listOf(
+                    PointerCallout("DENDRITE SHORT", 135f, 168f),
+                    PointerCallout("ANODE CELL", 88f, 246f)
+                )
+                CutawayStage.IMMUNE_CLEANUP -> listOf(
+                    PointerCallout("THERMAL VENT", 135f, 148f),
+                    PointerCallout("ION BALANCE", 174f, 238f)
+                )
+                CutawayStage.STRAND_AND_VESSEL_REBUILD -> listOf(
+                    PointerCallout("SEPARATOR MESH", 135f, 186f),
+                    PointerCallout("ELECTRON FLOW", 172f, 246f)
+                )
+                CutawayStage.CELL_MIGRATION_CLOSE -> listOf(
+                    PointerCallout("CATHODE CHARGE", 156f, 212f),
+                    PointerCallout("COPPER BUS", 135f, 308f)
+                )
+                CutawayStage.SURFACE_HEALED_ZOOM_OUT -> listOf(
+                    PointerCallout("100% POWER", 135f, 130f),
+                    PointerCallout("HEALED", 135f, 216f)
+                )
+            }
+            CutawaySubject.SOIL_ROOT_GROWTH -> when (resolvedStage) {
+                CutawayStage.SURFACE_ZOOM_IN -> listOf(
+                    PointerCallout("TOPSOIL CRUST", 135f, 132f)
+                )
+                CutawayStage.CROSS_SECTION_DAMAGE -> listOf(
+                    PointerCallout("DRY CRACK", 135f, 144f),
+                    PointerCallout("SEED EMBRYO", 135f, 214f)
+                )
+                CutawayStage.IMMUNE_CLEANUP -> listOf(
+                    PointerCallout("WATER POCKETS", 118f, 182f),
+                    PointerCallout("NUTRIENT IONS", 178f, 254f)
+                )
+                CutawayStage.STRAND_AND_VESSEL_REBUILD -> listOf(
+                    PointerCallout("ROOT NETWORK", 135f, 224f),
+                    PointerCallout("GREEN SPROUT", 135f, 114f)
+                )
+                CutawayStage.CELL_MIGRATION_CLOSE -> listOf(
+                    PointerCallout("XYLEM UPTAKE", 135f, 208f),
+                    PointerCallout("SUBSOIL BASE", 184f, 308f)
+                )
+                CutawayStage.SURFACE_HEALED_ZOOM_OUT -> listOf(
+                    PointerCallout("FULL BLOOM", 135f, 92f),
+                    PointerCallout("HEALED", 135f, 154f)
+                )
+            }
         }
     }
 
@@ -231,7 +468,12 @@ object ProceduralPuppetEngine {
         sceneId: Int = 1,
         customSprites: Map<ActorRole, Bitmap> = emptyMap(),
         expression: ActorExpression = ActorExpression.HAPPY_TALK,
-        headgear: ActorHeadgear = ActorHeadgear.NONE
+        headgear: ActorHeadgear = ActorHeadgear.NONE,
+        characterGender: CharacterGender = CharacterGender.MALE,
+        characterAge: CharacterAge = CharacterAge.MIDDLE_AGED,
+        characterOutfit: CharacterOutfit = CharacterOutfit.CASUAL_TSHIRT,
+        outfitColorHex: String = "",
+        hairColorHex: String = ""
     ) {
         val resolvedPose = if (characterPose != CharacterPose.AUTO) {
             characterPose
@@ -275,7 +517,12 @@ object ProceduralPuppetEngine {
                 primaryCustomSprite = customSprite ?: customSprites[role],
                 customSprites = customSprites,
                 expression = expression,
-                headgear = headgear
+                headgear = headgear,
+                characterGender = characterGender,
+                characterAge = characterAge,
+                characterOutfit = characterOutfit,
+                outfitColorHex = outfitColorHex,
+                hairColorHex = hairColorHex
             )
             return
         }
@@ -301,7 +548,12 @@ object ProceduralPuppetEngine {
             sceneId = sceneId,
             facingOverride = if (shotFraming == ShotFraming.RULE_OF_THIRDS_RIGHT) -1f else 1f,
             expression = expression,
-            headgear = headgear
+            headgear = headgear,
+            gender = characterGender,
+            age = characterAge,
+            outfit = characterOutfit,
+            outfitColorHex = outfitColorHex,
+            hairColorHex = hairColorHex
         )
 
         drawSingleActor(
@@ -345,7 +597,12 @@ object ProceduralPuppetEngine {
         primaryCustomSprite: Bitmap?,
         customSprites: Map<ActorRole, Bitmap>,
         expression: ActorExpression = ActorExpression.HAPPY_TALK,
-        headgear: ActorHeadgear = ActorHeadgear.NONE
+        headgear: ActorHeadgear = ActorHeadgear.NONE,
+        characterGender: CharacterGender = CharacterGender.MALE,
+        characterAge: CharacterAge = CharacterAge.MIDDLE_AGED,
+        characterOutfit: CharacterOutfit = CharacterOutfit.CASUAL_TSHIRT,
+        outfitColorHex: String = "",
+        hairColorHex: String = ""
     ) {
         val partner = resolvePartnerRole(primaryRole, secondaryRole, sceneId)
         val primaryOnRight = primaryRole == ActorRole.CHICKEN_MENTOR || primaryRole == ActorRole.RICH_MAN
@@ -396,7 +653,12 @@ object ProceduralPuppetEngine {
                     handProp = handProp,
                     showThumbsUp = action == ActorAction.THUMBS_UP,
                     expression = expression,
-                    headgear = headgear
+                    headgear = headgear,
+                    gender = characterGender,
+                    age = characterAge,
+                    outfit = characterOutfit,
+                    outfitColorHex = outfitColorHex,
+                    hairColorHex = hairColorHex
                 )
             } else {
                 RigPose(
@@ -715,10 +977,13 @@ object ProceduralPuppetEngine {
                 setStyle(Paint.Style.STROKE)
                 strokeWidth = 4f * scaleUnit * hudScale
             }
+            canvas.save()
+            canvas.translate(rootX + drawW * 0.34f, rootY - drawH * 0.44f)
+            canvas.rotate(pose.rightHandTiltDeg)
             PuppetPropRenderer.drawHandProp(
                 canvas = canvas,
-                handX = rootX + drawW * 0.36f,
-                handY = rootY - drawH * 0.44f,
+                handX = 0f,
+                handY = 0f,
                 u = scaleUnit * hudScale,
                 prop = pose.handProp,
                 globalTimeSec = globalTimeSec,
@@ -726,6 +991,7 @@ object ProceduralPuppetEngine {
                 outlinePaint = handOutline,
                 facingDir = 1f
             )
+            canvas.restore()
         }
         canvas.restore()
     }
@@ -745,7 +1011,12 @@ object ProceduralPuppetEngine {
         sceneId: Int,
         facingOverride: Float,
         expression: ActorExpression = ActorExpression.HAPPY_TALK,
-        headgear: ActorHeadgear = ActorHeadgear.NONE
+        headgear: ActorHeadgear = ActorHeadgear.NONE,
+        gender: CharacterGender = CharacterGender.MALE,
+        age: CharacterAge = CharacterAge.MIDDLE_AGED,
+        outfit: CharacterOutfit = CharacterOutfit.CASUAL_TSHIRT,
+        outfitColorHex: String = "",
+        hairColorHex: String = ""
     ): RigPose {
         val blinkPhase = globalTimeSec % 3.5f
         val baseEyeScaleY = if (blinkPhase > 3.34f) {
@@ -776,48 +1047,55 @@ object ProceduralPuppetEngine {
         val springArm = spring.trailingArmLagDeg
 
         fun applyExpressionOverrides(base: RigPose): RigPose {
+            val styled = base.copy(
+                gender = gender,
+                age = age,
+                outfit = outfit,
+                outfitColorHex = outfitColorHex,
+                hairColorHex = hairColorHex
+            )
             return when (expression) {
-                ActorExpression.HAPPY_TALK -> base.copy(expression = expression, headgear = headgear)
-                ActorExpression.ANGRY_EVIL -> base.copy(
+                ActorExpression.HAPPY_TALK -> styled.copy(expression = expression, headgear = headgear)
+                ActorExpression.ANGRY_EVIL -> styled.copy(
                     eyebrowSlantDeg = -22f,
                     eyebrowOffset = 2f,
-                    mouthOpen = maxOf(base.mouthOpen, exprMouth),
+                    mouthOpen = maxOf(styled.mouthOpen, exprMouth),
                     emoteType = 2,
                     expression = expression,
                     headgear = headgear
                 )
-                ActorExpression.PANIC_SWEAT_FIRE -> base.copy(
-                    eyeScaleY = maxOf(base.eyeScaleY, 1.30f),
+                ActorExpression.PANIC_SWEAT_FIRE -> styled.copy(
+                    eyeScaleY = maxOf(styled.eyeScaleY, 1.30f),
                     pupilScale = 0.50f,
-                    mouthOpen = maxOf(base.mouthOpen, exprMouth),
+                    mouthOpen = maxOf(styled.mouthOpen, exprMouth),
                     eyebrowOffset = -14f,
                     eyebrowSlantDeg = -14f,
                     emoteType = 1,
                     expression = expression,
                     headgear = headgear
                 )
-                ActorExpression.SHOCKED_WIDE_EYES -> base.copy(
+                ActorExpression.SHOCKED_WIDE_EYES -> styled.copy(
                     eyeScaleY = 1.42f,
                     pupilScale = 0.45f,
-                    mouthOpen = maxOf(base.mouthOpen, exprMouth),
+                    mouthOpen = maxOf(styled.mouthOpen, exprMouth),
                     eyebrowOffset = -18f,
                     eyebrowSlantDeg = -10f,
                     emoteType = 2,
                     expression = expression,
                     headgear = headgear
                 )
-                ActorExpression.TONGUE_STING -> base.copy(
+                ActorExpression.TONGUE_STING -> styled.copy(
                     eyeScaleY = 0.22f,
-                    mouthOpen = maxOf(base.mouthOpen, exprMouth),
+                    mouthOpen = maxOf(styled.mouthOpen, exprMouth),
                     eyebrowOffset = 4f,
                     eyebrowSlantDeg = -16f,
                     emoteType = 1,
                     expression = expression,
                     headgear = headgear
                 )
-                ActorExpression.SLEEPING_ZZZ -> base.copy(
+                ActorExpression.SLEEPING_ZZZ -> styled.copy(
                     eyeScaleY = 0.14f,
-                    headTiltDeg = base.headTiltDeg + 10f,
+                    headTiltDeg = styled.headTiltDeg + 10f,
                     mouthOpen = exprMouth,
                     eyebrowOffset = -4f,
                     eyebrowSlantDeg = 6f,
@@ -1065,7 +1343,15 @@ object ProceduralPuppetEngine {
         return applyExpressionOverrides(rawPose)
     }
 
-    private fun paletteForRole(role: ActorRole, style: AnimationStyle): RolePalette {
+    private fun paletteForRole(
+        role: ActorRole,
+        style: AnimationStyle,
+        gender: CharacterGender = CharacterGender.MALE,
+        age: CharacterAge = CharacterAge.MIDDLE_AGED,
+        outfit: CharacterOutfit = CharacterOutfit.CASUAL_TSHIRT,
+        outfitColorHex: String = "",
+        hairColorHex: String = ""
+    ): RolePalette {
         val base = when (role) {
             ActorRole.RICH_MAN -> RolePalette(
                 skin = 0xFFF5CBA7.toInt(),
@@ -1119,16 +1405,44 @@ object ProceduralPuppetEngine {
             )
         }
 
+        val outfitDefaultColor = when (outfit) {
+            CharacterOutfit.MEDICAL_SCRUBS -> 0xFF0EA5E9.toInt()
+            CharacterOutfit.MARKET_APRON -> 0xFFF97316.toInt()
+            CharacterOutfit.STUDENT_UNIFORM -> 0xFF1D4ED8.toInt()
+            CharacterOutfit.WORK_UNIFORM -> 0xFFD97706.toInt()
+            CharacterOutfit.HOODIE -> 0xFF7C3AED.toInt()
+            CharacterOutfit.OFFICE_SUIT -> if (role == ActorRole.RICH_MAN) base.primary else 0xFF1E293B.toInt()
+            CharacterOutfit.CASUAL_TSHIRT -> if (gender == CharacterGender.FEMALE && role == ActorRole.HERO) 0xFFEC4899.toInt() else base.primary
+        }
+
+        val customOutfit = if (role != ActorRole.CHICKEN_MENTOR) parseHexColorOrNull(outfitColorHex) else null
+        val chosenPrimary = customOutfit ?: if (role != ActorRole.CHICKEN_MENTOR) outfitDefaultColor else base.primary
+        var styled = if (role != ActorRole.CHICKEN_MENTOR) {
+            base.copy(
+                primary = chosenPrimary,
+                primaryShadow = darkenColor(chosenPrimary, 0.76f)
+            )
+        } else {
+            base
+        }
+
+        val customHair = if (role != ActorRole.CHICKEN_MENTOR) parseHexColorOrNull(hairColorHex) else null
+        if (customHair != null) {
+            styled = styled.copy(hair = customHair)
+        } else if (age == CharacterAge.ELDERLY && role != ActorRole.CHICKEN_MENTOR) {
+            styled = styled.copy(hair = 0xFFD1D5DB.toInt())
+        }
+
         if (style == AnimationStyle.DARK_SUSPENSE) {
-            return base.copy(
-                skin = darkenColor(base.skin, 0.72f),
-                skinShadow = darkenColor(base.skinShadow, 0.65f),
-                primary = darkenColor(base.primary, 0.68f),
-                primaryShadow = darkenColor(base.primaryShadow, 0.60f),
-                secondary = darkenColor(base.secondary, 0.85f)
+            return styled.copy(
+                skin = darkenColor(styled.skin, 0.72f),
+                skinShadow = darkenColor(styled.skinShadow, 0.65f),
+                primary = darkenColor(styled.primary, 0.68f),
+                primaryShadow = darkenColor(styled.primaryShadow, 0.60f),
+                secondary = darkenColor(styled.secondary, 0.85f)
             )
         }
-        return base
+        return styled
     }
 
     private fun drawLayeredPuppet(
@@ -1143,7 +1457,7 @@ object ProceduralPuppetEngine {
         silhouetteOutlineOnly: Boolean,
         softDropShadowOnly: Boolean = false
     ) {
-        val pal = paletteForRole(role, style)
+        val pal = paletteForRole(role, style, pose.gender, pose.age, pose.outfit, pose.outfitColorHex, pose.hairColorHex)
         val isChibi = style == AnimationStyle.CHIBI_STORYTIME
         val isBorderless = (style == AnimationStyle.FLAT_VECTOR || style == AnimationStyle.TECH_EXPLAINER) && !silhouetteOutlineOnly
         val isSideProfile = pose.perspectiveProfile >= 0.85f
@@ -1205,11 +1519,12 @@ object ProceduralPuppetEngine {
             strokeCap = Paint.Cap.ROUND
         }
 
-        val headScale = if (isChibi) 1.32f else 1.0f
-        val bodyH = if (isChibi) 145f * u else 185f * u
-        val legH = if (isChibi) 88f * u else 130f * u
+        val isChild = pose.age == CharacterAge.CHILD && role != ActorRole.CHICKEN_MENTOR
+        val headScale = (if (isChibi) 1.32f else 1.0f) * (if (isChild) 1.08f else 1.0f)
+        val bodyH = (if (isChibi) 145f * u else 185f * u) * (if (isChild) 0.84f else 1.0f)
+        val legH = (if (isChibi) 88f * u else 130f * u) * (if (isChild) 0.82f else 1.0f)
         val hipY = rootY - legH
-        val shoulderY = hipY - bodyH + 25f * u
+        val shoulderY = hipY - bodyH + 30f * u
         val neckY = hipY - bodyH
 
         val torsoWidthFactor = if (isSideProfile) 0.68f else (1f - pose.perspectiveProfile * 0.16f)
@@ -1265,14 +1580,14 @@ object ProceduralPuppetEngine {
             u = u
         )
 
-        // 2. FAR ARM (behind torso, Shoulder -> Elbow -> Forearm -> Hand Matrix chain)
-        val shoulderOffset = (if (role == ActorRole.CHICKEN_MENTOR) 72f * u else 68f * u) * torsoWidthFactor
+        // 2. FAR ARM (behind torso, anchored tightly inside torso shoulder socket)
+        val shoulderOffset = (if (role == ActorRole.CHICKEN_MENTOR) 64f * u else 54f * u) * torsoWidthFactor
         val totalArmLen = (if (isChibi) 115f * u else 142f * u) * pose.limbStretchY
         val upperArmLen = totalArmLen * 0.52f
         val forearmLen = totalArmLen * 0.48f
         val armThick = (if (role == ActorRole.CHICKEN_MENTOR) 32f * u else 27f * u) * pose.limbSquashX
 
-        val backShoulderX = if (isSideProfile) rootX - 10f * u * pose.facingDir else rootX - shoulderOffset * pose.facingDir
+        val backShoulderX = if (isSideProfile) rootX - 6f * u * pose.facingDir else rootX - shoulderOffset * pose.facingDir
         drawArticulatedArm(
             canvas = canvas,
             shoulderX = backShoulderX,
@@ -1321,7 +1636,7 @@ object ProceduralPuppetEngine {
                 Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x33000000 }
             )
             val detailShift = pose.facingDir * pose.perspectiveProfile * (if (isSideProfile) 2.1f else 1.5f)
-            drawRoleTorsoDetails(canvas, torsoRect, rootX, u, role, pal, detailShift)
+            drawRoleTorsoDetails(canvas, torsoRect, rootX, u, role, pal, detailShift, pose.outfit)
             if (style == AnimationStyle.DARK_SUSPENSE || style == AnimationStyle.TECH_EXPLAINER) {
                 canvas.drawArc(torsoRect, -65f, 110f, false, rimPaint)
             }
@@ -1428,7 +1743,10 @@ object ProceduralPuppetEngine {
                 silhouetteOnly = false,
                 headgear = pose.headgear,
                 outlinePaint = outlinePaint,
-                strokeW = strokeW
+                strokeW = strokeW,
+                gender = pose.gender,
+                age = pose.age,
+                outfit = pose.outfit
             )
             canvas.restore()
 
@@ -1436,7 +1754,8 @@ object ProceduralPuppetEngine {
                 canvas.drawArc(headRect, -55f, 100f, false, rimPaint)
             }
         } else {
-            if (role == ActorRole.RICH_MAN || pose.headgear != ActorHeadgear.NONE) {
+            val useRichTopHat = role == ActorRole.RICH_MAN && pose.outfit == CharacterOutfit.OFFICE_SUIT && pose.gender == CharacterGender.MALE
+            if (useRichTopHat || pose.headgear != ActorHeadgear.NONE || pose.gender == CharacterGender.FEMALE) {
                 canvas.save()
                 canvas.rotate(pose.hairHatTiltDeg, rootX, headRect.top + 12f * u)
                 drawRoleHeadgear(
@@ -1450,7 +1769,10 @@ object ProceduralPuppetEngine {
                     silhouetteOnly = true,
                     headgear = pose.headgear,
                     outlinePaint = outlinePaint,
-                    strokeW = strokeW
+                    strokeW = strokeW,
+                    gender = pose.gender,
+                    age = pose.age,
+                    outfit = pose.outfit
                 )
                 canvas.restore()
             }
@@ -1459,7 +1781,7 @@ object ProceduralPuppetEngine {
         canvas.restore()
 
         // 5. NEAR / RIGHT ARM (in front of torso + articulated elbow + hands-on Prop inside right-hand pivot Matrix)
-        val frontShoulderX = if (isSideProfile) rootX + 12f * u * pose.facingDir else rootX + shoulderOffset * pose.facingDir
+        val frontShoulderX = if (isSideProfile) rootX + 8f * u * pose.facingDir else rootX + shoulderOffset * pose.facingDir
         drawArticulatedArm(
             canvas = canvas,
             shoulderX = frontShoulderX,
@@ -1592,7 +1914,7 @@ object ProceduralPuppetEngine {
             val wingLen = upperLen + forearmLen * 0.85f
             val wingRect = RectF(
                 shoulderX - thickness * 0.58f,
-                shoulderY - 8f * u,
+                shoulderY - thickness * 0.44f,
                 shoulderX + thickness * 0.58f,
                 shoulderY + wingLen * 0.62f
             )
@@ -1606,7 +1928,7 @@ object ProceduralPuppetEngine {
                 postRotate(elbowDeg * 0.65f)
             }
             canvas.concat(wingTipMatrix)
-            val tipRect = RectF(-thickness * 0.45f, -6f * u, thickness * 0.45f, forearmLen * 0.82f)
+            val tipRect = RectF(-thickness * 0.45f, -thickness * 0.40f, thickness * 0.45f, forearmLen * 0.82f)
             canvas.drawOval(tipRect, sleevePaint)
             if (strokeW > 0f) canvas.drawOval(tipRect, outlinePaint)
 
@@ -1635,12 +1957,12 @@ object ProceduralPuppetEngine {
             return
         }
 
-        // Upper Arm
+        // Upper Arm: rounded cap centered on (shoulderX, shoulderY) so rotation never detaches the shoulder
         val upperRect = RectF(
             shoulderX - thickness * 0.5f,
-            shoulderY,
+            shoulderY - thickness * 0.48f,
             shoulderX + thickness * 0.5f,
-            shoulderY + upperLen + 6f * u
+            shoulderY + upperLen + thickness * 0.42f
         )
         canvas.drawRoundRect(upperRect, thickness * 0.45f, thickness * 0.45f, sleevePaint)
         if (strokeW > 0f) canvas.drawRoundRect(upperRect, thickness * 0.45f, thickness * 0.45f, outlinePaint)
@@ -1653,7 +1975,7 @@ object ProceduralPuppetEngine {
         }
         canvas.concat(elbowMatrix)
 
-        val forearmRect = RectF(-thickness * 0.46f, -4f * u, thickness * 0.46f, forearmLen)
+        val forearmRect = RectF(-thickness * 0.46f, -thickness * 0.42f, thickness * 0.46f, forearmLen)
         canvas.drawRoundRect(forearmRect, thickness * 0.42f, thickness * 0.42f, sleevePaint)
         if (!silhouetteOutlineOnly) {
             val cuffRect = RectF(-thickness * 0.52f, forearmLen - 16f * u, thickness * 0.52f, forearmLen - 5f * u)
@@ -1705,7 +2027,8 @@ object ProceduralPuppetEngine {
         u: Float,
         role: ActorRole,
         pal: RolePalette,
-        turnShift: Float
+        turnShift: Float,
+        outfit: CharacterOutfit = CharacterOutfit.CASUAL_TSHIRT
     ) {
         val cx = (rootX + turnShift * 11f * u).coerceIn(torso.left + 26f * u, torso.right - 26f * u)
         val stitchPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1714,8 +2037,46 @@ object ProceduralPuppetEngine {
             strokeWidth = 3f * u
         }
 
-        when (role) {
-            ActorRole.RICH_MAN -> {
+        if (role == ActorRole.CHICKEN_MENTOR) {
+            val bib = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.primaryShadow }
+            canvas.drawArc(
+                RectF(cx - 46f * u, torso.top + 12f * u, cx + 46f * u, torso.top + 92f * u),
+                0f, 180f, true, bib
+            )
+            val bowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.accent }
+            val leftWing = Path().apply {
+                moveTo(cx, torso.top + 28f * u)
+                lineTo(cx - 20f * u, torso.top + 14f * u)
+                lineTo(cx - 20f * u, torso.top + 42f * u)
+                close()
+            }
+            val rightWing = Path().apply {
+                moveTo(cx, torso.top + 28f * u)
+                lineTo(cx + 20f * u, torso.top + 14f * u)
+                lineTo(cx + 20f * u, torso.top + 42f * u)
+                close()
+            }
+            canvas.drawPath(leftWing, bowPaint)
+            canvas.drawPath(rightWing, bowPaint)
+            canvas.drawCircle(cx, torso.top + 28f * u, 7f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.secondary })
+            return
+        }
+
+        when (outfit) {
+            CharacterOutfit.MARKET_APRON -> {
+                // Crisp cream bib apron + straps + front market coin pocket
+                val apronPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFEF3C7.toInt() }
+                val strapW = 14f * u
+                canvas.drawRect(cx - 34f * u, torso.top + 4f * u, cx - 34f * u + strapW, torso.top + 46f * u, apronPaint)
+                canvas.drawRect(cx + 34f * u - strapW, torso.top + 4f * u, cx + 34f * u, torso.top + 46f * u, apronPaint)
+                val apronRect = RectF(torso.left + 16f * u, torso.top + 42f * u, torso.right - 16f * u, torso.bottom - 4f * u)
+                canvas.drawRoundRect(apronRect, 14f * u, 14f * u, apronPaint)
+                canvas.drawRoundRect(apronRect, 14f * u, 14f * u, stitchPaint)
+                val pocket = RectF(cx - 30f * u, torso.top + 86f * u, cx + 30f * u, torso.top + 130f * u)
+                canvas.drawRoundRect(pocket, 8f * u, 8f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFDE68A.toInt() })
+                canvas.drawRoundRect(pocket, 8f * u, 8f * u, stitchPaint)
+            }
+            CharacterOutfit.OFFICE_SUIT -> {
                 val shirt = Path().apply {
                     moveTo(cx - 26f * u, torso.top)
                     lineTo(cx, torso.top + 88f * u)
@@ -1738,7 +2099,6 @@ object ProceduralPuppetEngine {
                 }
                 canvas.drawPath(leftLapel, lapelPaint)
                 canvas.drawPath(rightLapel, lapelPaint)
-
                 val tie = Path().apply {
                     moveTo(cx - 9f * u, torso.top + 10f * u)
                     lineTo(cx + 9f * u, torso.top + 10f * u)
@@ -1753,100 +2113,93 @@ object ProceduralPuppetEngine {
                     5f * u, 5f * u,
                     Paint(Paint.ANTI_ALIAS_FLAG).apply { color = darkenColor(pal.secondary, 0.85f) }
                 )
-
-                val pocketX = (cx + 22f * u).coerceAtMost(torso.right - 34f * u)
-                val pocket = RectF(pocketX, torso.top + 56f * u, pocketX + 26f * u, torso.top + 80f * u)
-                canvas.drawRoundRect(pocket, 4f * u, 4f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.primaryShadow })
-                canvas.drawRoundRect(pocket, 4f * u, 4f * u, stitchPaint)
-                canvas.drawRect(pocketX + 4f * u, torso.top + 48f * u, pocketX + 22f * u, torso.top + 60f * u,
-                    Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.secondary })
             }
-            ActorRole.POOR_MAN -> {
+            CharacterOutfit.STUDENT_UNIFORM -> {
+                // Crisp white collar + school necktie/ribbon + crest badge
                 val collar = Path().apply {
-                    moveTo(cx - 24f * u, torso.top + 6f * u)
-                    lineTo(cx, torso.top + 30f * u)
-                    lineTo(cx + 24f * u, torso.top + 6f * u)
-                    lineTo(cx + 16f * u, torso.top + 38f * u)
-                    lineTo(cx - 16f * u, torso.top + 38f * u)
+                    moveTo(cx - 34f * u, torso.top + 2f * u)
+                    lineTo(cx, torso.top + 44f * u)
+                    lineTo(cx + 34f * u, torso.top + 2f * u)
+                    lineTo(cx + 42f * u, torso.top + 24f * u)
+                    lineTo(cx, torso.top + 56f * u)
+                    lineTo(cx - 42f * u, torso.top + 24f * u)
                     close()
                 }
-                canvas.drawPath(collar, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.secondary })
-                val hoopPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = 0xFF475569.toInt()
-                    strokeWidth = 9f * u
+                canvas.drawPath(collar, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
+                val rib = Path().apply {
+                    moveTo(cx - 10f * u, torso.top + 28f * u)
+                    lineTo(cx + 10f * u, torso.top + 28f * u)
+                    lineTo(cx + 14f * u, torso.top + 84f * u)
+                    lineTo(cx, torso.top + 96f * u)
+                    lineTo(cx - 14f * u, torso.top + 84f * u)
+                    close()
                 }
-                canvas.drawLine(torso.left + 4f * u, torso.top + 48f * u, torso.right - 4f * u, torso.top + 48f * u, hoopPaint)
-                canvas.drawLine(torso.left + 4f * u, torso.bottom - 42f * u, torso.right - 4f * u, torso.bottom - 42f * u, hoopPaint)
-                val px = (cx + 16f * u).coerceAtMost(torso.right - 34f * u)
-                val patchRect = RectF(px, torso.top + 66f * u, px + 28f * u, torso.top + 100f * u)
-                canvas.drawRoundRect(patchRect, 6f * u, 6f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.secondary })
-                canvas.drawRoundRect(patchRect, 6f * u, 6f * u, stitchPaint)
+                canvas.drawPath(rib, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFEF4444.toInt() })
+                val crestX = (cx + 28f * u).coerceAtMost(torso.right - 22f * u)
+                canvas.drawCircle(crestX, torso.top + 66f * u, 13f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFACC15.toInt() })
             }
-            ActorRole.HERO -> {
-                val collar = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.secondary }
+            CharacterOutfit.MEDICAL_SCRUBS -> {
+                // Scrub V-neck + stethoscope curve + hospital ID tag
+                val vNeck = Path().apply {
+                    moveTo(cx - 24f * u, torso.top)
+                    lineTo(cx, torso.top + 38f * u)
+                    lineTo(cx + 24f * u, torso.top)
+                    close()
+                }
+                canvas.drawPath(vNeck, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.skin })
+                val stethPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = 0xFF1E293B.toInt()
+                    setStyle(Paint.Style.STROKE)
+                    strokeWidth = 6.5f * u
+                    strokeCap = Paint.Cap.ROUND
+                }
+                canvas.drawArc(RectF(cx - 32f * u, torso.top - 4f * u, cx + 32f * u, torso.top + 64f * u), 10f, 160f, false, stethPaint)
+                canvas.drawCircle(cx + 24f * u, torso.top + 62f * u, 10f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFCBD5E1.toInt() })
+                val idRect = RectF(cx - 42f * u, torso.top + 56f * u, cx - 14f * u, torso.top + 88f * u)
+                canvas.drawRoundRect(idRect, 4f * u, 4f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
+                canvas.drawRect(idRect.left + 4f * u, idRect.top + 6f * u, idRect.right - 4f * u, idRect.top + 14f * u,
+                    Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFEF4444.toInt() })
+            }
+            CharacterOutfit.HOODIE -> {
+                // Hoodie neck trim + hanging drawstrings + kangaroo front pouch
                 canvas.drawRoundRect(
                     RectF(torso.left + 12f * u, torso.top - 4f * u, torso.right - 12f * u, torso.top + 28f * u),
-                    14f * u, 14f * u, collar
+                    14f * u, 14f * u,
+                    Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.primaryShadow }
                 )
-                val zipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = 0xFFE2E8F0.toInt()
-                    strokeWidth = 4f * u
-                }
-                canvas.drawLine(cx, torso.top + 26f * u, cx, torso.bottom - 10f * u, zipPaint)
-                val badgeX = (cx + 22f * u).coerceAtMost(torso.right - 22f * u)
-                val badge = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.accent }
-                canvas.drawCircle(badgeX, torso.top + 72f * u, 16f * u, badge)
-                canvas.drawCircle(badgeX, torso.top + 72f * u, 8f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
+                val cordP = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFF8FAFC.toInt(); strokeWidth = 5f * u; strokeCap = Paint.Cap.ROUND }
+                canvas.drawLine(cx - 14f * u, torso.top + 24f * u, cx - 16f * u, torso.top + 74f * u, cordP)
+                canvas.drawLine(cx + 14f * u, torso.top + 24f * u, cx + 16f * u, torso.top + 74f * u, cordP)
+                val pouch = RectF(torso.left + 20f * u, torso.bottom - 68f * u, torso.right - 20f * u, torso.bottom - 14f * u)
+                canvas.drawRoundRect(pouch, 14f * u, 14f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.primaryShadow })
+                canvas.drawRoundRect(pouch, 14f * u, 14f * u, stitchPaint)
             }
-            ActorRole.NARRATOR -> {
-                val vShirt = Path().apply {
-                    moveTo(cx - 22f * u, torso.top)
-                    lineTo(cx, torso.top + 64f * u)
-                    lineTo(cx + 22f * u, torso.top)
-                    close()
-                }
-                canvas.drawPath(vShirt, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFF8FAFC.toInt() })
-                val lapelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = lightenColor(pal.primary, 1.2f) }
-                val collarL = Path().apply {
-                    moveTo(cx - 22f * u, torso.top)
-                    lineTo(cx - 38f * u, torso.top + 40f * u)
-                    lineTo(cx - 8f * u, torso.top + 62f * u)
-                    close()
-                }
-                val collarR = Path().apply {
-                    moveTo(cx + 22f * u, torso.top)
-                    lineTo(cx + 38f * u, torso.top + 40f * u)
-                    lineTo(cx + 8f * u, torso.top + 62f * u)
-                    close()
-                }
-                canvas.drawPath(collarL, lapelPaint)
-                canvas.drawPath(collarR, lapelPaint)
-                val lapel = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.secondary }
-                canvas.drawCircle(cx - 22f * u, torso.top + 44f * u, 7f * u, lapel)
-                canvas.drawCircle(cx - 22f * u, torso.top + 44f * u, 4f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF111827.toInt() })
+            CharacterOutfit.WORK_UNIFORM -> {
+                // Hi-vis reflective safety stripes + utility chest pocket
+                val stripePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFEF08A.toInt() }
+                canvas.drawRect(torso.left + 4f * u, torso.top + 48f * u, torso.right - 4f * u, torso.top + 64f * u, stripePaint)
+                canvas.drawRect(torso.left + 4f * u, torso.bottom - 44f * u, torso.right - 4f * u, torso.bottom - 28f * u, stripePaint)
+                val px = (cx + 16f * u).coerceAtMost(torso.right - 36f * u)
+                val pocket = RectF(px, torso.top + 74f * u, px + 26f * u, torso.top + 104f * u)
+                canvas.drawRoundRect(pocket, 5f * u, 5f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.primaryShadow })
+                canvas.drawRoundRect(pocket, 5f * u, 5f * u, stitchPaint)
             }
-            ActorRole.CHICKEN_MENTOR -> {
-                val bib = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.primaryShadow }
+            CharacterOutfit.CASUAL_TSHIRT -> {
+                // Clean crew-neck collar + subtle chest stripe/pocket
                 canvas.drawArc(
-                    RectF(cx - 46f * u, torso.top + 12f * u, cx + 46f * u, torso.top + 92f * u),
-                    0f, 180f, true, bib
+                    RectF(cx - 26f * u, torso.top - 12f * u, cx + 26f * u, torso.top + 26f * u),
+                    0f, 180f, true,
+                    Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.skin }
                 )
-                val bowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.accent }
-                val leftWing = Path().apply {
-                    moveTo(cx, torso.top + 28f * u)
-                    lineTo(cx - 20f * u, torso.top + 14f * u)
-                    lineTo(cx - 20f * u, torso.top + 42f * u)
-                    close()
-                }
-                val rightWing = Path().apply {
-                    moveTo(cx, torso.top + 28f * u)
-                    lineTo(cx + 20f * u, torso.top + 14f * u)
-                    lineTo(cx + 20f * u, torso.top + 42f * u)
-                    close()
-                }
-                canvas.drawPath(leftWing, bowPaint)
-                canvas.drawPath(rightWing, bowPaint)
-                canvas.drawCircle(cx, torso.top + 28f * u, 7f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.secondary })
+                canvas.drawArc(
+                    RectF(cx - 30f * u, torso.top - 12f * u, cx + 30f * u, torso.top + 32f * u),
+                    10f, 160f, false,
+                    Paint(Paint.ANTI_ALIAS_FLAG).apply { color = lightenColor(pal.primary, 1.25f); style = Paint.Style.STROKE; strokeWidth = 6f * u }
+                )
+                val px = (cx + 18f * u).coerceAtMost(torso.right - 34f * u)
+                val pocket = RectF(px, torso.top + 54f * u, px + 24f * u, torso.top + 80f * u)
+                canvas.drawRoundRect(pocket, 5f * u, 5f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.primaryShadow })
+                canvas.drawRoundRect(pocket, 5f * u, 5f * u, stitchPaint)
             }
         }
     }
@@ -1991,6 +2344,19 @@ object ProceduralPuppetEngine {
                             15f, 150f, false, lidPaint
                         )
                     }
+                    if (pose.gender == CharacterGender.FEMALE && role != ActorRole.CHICKEN_MENTOR && pose.eyeScaleY >= 0.65f) {
+                        val lashPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            color = 0xFF0E1018.toInt()
+                            setStyle(Paint.Style.STROKE)
+                            strokeWidth = 3.5f * u
+                            strokeCap = Paint.Cap.ROUND
+                        }
+                        val lashSide = if (isSideProfile) pose.facingDir else side
+                        val lx0 = ex + lashSide * eyeR * 0.72f
+                        val ly0 = eyeY - eyeR * 0.55f
+                        canvas.drawLine(lx0, ly0, lx0 + lashSide * 8f * u, ly0 - 7f * u, lashPaint)
+                        canvas.drawLine(lx0 + lashSide * 2f * u, ly0 + 4f * u, lx0 + lashSide * 10f * u, ly0 - 1f * u, lashPaint)
+                    }
                 }
             }
 
@@ -2021,6 +2387,35 @@ object ProceduralPuppetEngine {
             )
         }
 
+        if (pose.age == CharacterAge.ELDERLY && role != ActorRole.CHICKEN_MENTOR) {
+            val wrinklePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = pal.skinShadow
+                setStyle(Paint.Style.STROKE)
+                strokeWidth = 3f * u
+                strokeCap = Paint.Cap.ROUND
+            }
+            // Forehead & cheek smile lines
+            canvas.drawArc(RectF(cx - 26f * u, eyeY - 38f * u, cx + 26f * u, eyeY - 26f * u), 200f, 140f, false, wrinklePaint)
+            if (!isSideProfile) {
+                canvas.drawArc(RectF(cx - 46f * u, cy + 14f * u, cx - 28f * u, cy + 36f * u), 100f, 130f, false, wrinklePaint)
+                canvas.drawArc(RectF(cx + 28f * u, cy + 14f * u, cx + 46f * u, cy + 36f * u), -50f, 130f, false, wrinklePaint)
+            }
+            if (role != ActorRole.RICH_MAN) {
+                val wireSpec = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = 0xFF64748B.toInt()
+                    setStyle(Paint.Style.STROKE)
+                    strokeWidth = 3.8f * u
+                }
+                if (isSideProfile) {
+                    canvas.drawCircle(cx + pose.facingDir * 14f * u, eyeY, eyeR + 4.5f * u, wireSpec)
+                } else {
+                    canvas.drawCircle(cx - eyeXOffset, eyeY, eyeR + 4.5f * u, wireSpec)
+                    canvas.drawCircle(cx + eyeXOffset, eyeY, eyeR + 4.5f * u, wireSpec)
+                    canvas.drawLine(cx - eyeXOffset + eyeR + 4.5f * u, eyeY, cx + eyeXOffset - eyeR - 4.5f * u, eyeY, wireSpec)
+                }
+            }
+        }
+
         if (pose.tearDropLevel > 0f) {
             val tearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xCC38BDF8.toInt() }
             val ty = eyeY + 14f * u + pose.tearDropLevel * 32f * u
@@ -2032,7 +2427,7 @@ object ProceduralPuppetEngine {
             }
         }
 
-        if (role == ActorRole.RICH_MAN && !isSideProfile) {
+        if (role == ActorRole.RICH_MAN && pose.outfit == CharacterOutfit.OFFICE_SUIT && !isSideProfile) {
             val goldRim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = pal.secondary
                 setStyle(Paint.Style.STROKE)
@@ -2174,7 +2569,7 @@ object ProceduralPuppetEngine {
                 }
             }
 
-            if (role == ActorRole.RICH_MAN) {
+            if (role == ActorRole.RICH_MAN && pose.outfit == CharacterOutfit.OFFICE_SUIT && pose.gender == CharacterGender.MALE) {
                 val stache = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.hair }
                 if (isSideProfile) {
                     canvas.drawOval(RectF(mx - 12f * u, mouthY - 16f * u, mx + 24f * u, mouthY - 2f * u), stache)
@@ -2197,7 +2592,10 @@ object ProceduralPuppetEngine {
         silhouetteOnly: Boolean = false,
         headgear: ActorHeadgear = ActorHeadgear.NONE,
         outlinePaint: Paint = Paint(),
-        strokeW: Float = 0f
+        strokeW: Float = 0f,
+        gender: CharacterGender = CharacterGender.MALE,
+        age: CharacterAge = CharacterAge.MIDDLE_AGED,
+        outfit: CharacterOutfit = CharacterOutfit.CASUAL_TSHIRT
     ) {
         val cx = rootX + turnShift * 6f * u
         if (headgear != ActorHeadgear.NONE) {
@@ -2274,8 +2672,36 @@ object ProceduralPuppetEngine {
                 ActorHeadgear.NONE -> Unit
             }
         }
-        when (role) {
-            ActorRole.RICH_MAN -> {
+        if (gender == CharacterGender.FEMALE && role != ActorRole.CHICKEN_MENTOR) {
+            val hairPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = if (silhouetteOnly) Color.BLACK else pal.hair
+                if (silhouetteOnly) {
+                    setStyle(Paint.Style.FILL_AND_STROKE)
+                    strokeWidth = strokeW
+                }
+            }
+            // Flowing side bob/shoulder tresses + top bangs (or elderly bun)
+            val leftHair = RectF(headRect.left - 18f * u, headRect.top + 8f * u, headRect.left + 22f * u, headRect.bottom + 26f * u)
+            val rightHair = RectF(headRect.right - 22f * u, headRect.top + 8f * u, headRect.right + 18f * u, headRect.bottom + 26f * u)
+            canvas.drawRoundRect(leftHair, 16f * u, 16f * u, hairPaint)
+            canvas.drawRoundRect(rightHair, 16f * u, 16f * u, hairPaint)
+            val crownArc = RectF(headRect.left - 14f * u, headRect.top - 14f * u, headRect.right + 14f * u, headRect.top + 60f * u)
+            canvas.drawArc(crownArc, 180f, 180f, true, hairPaint)
+            if (age == CharacterAge.ELDERLY) {
+                canvas.drawCircle(cx - turnShift * 18f * u, headRect.top - 18f * u, 28f * u, hairPaint)
+                if (!silhouetteOnly && strokeW > 0f) {
+                    canvas.drawCircle(cx - turnShift * 18f * u, headRect.top - 18f * u, 28f * u, outlinePaint)
+                }
+            }
+            if (!silhouetteOnly && strokeW > 0f) {
+                canvas.drawRoundRect(leftHair, 16f * u, 16f * u, outlinePaint)
+                canvas.drawRoundRect(rightHair, 16f * u, 16f * u, outlinePaint)
+                canvas.drawArc(crownArc, 180f, 180f, false, outlinePaint)
+            }
+            return
+        }
+        when {
+            role == ActorRole.RICH_MAN && outfit == CharacterOutfit.OFFICE_SUIT -> {
                 val hatPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = if (silhouetteOnly) Color.BLACK else 0xFF111827.toInt()
                     if (silhouetteOnly) {
@@ -2292,7 +2718,7 @@ object ProceduralPuppetEngine {
                     canvas.drawRect(cx - 58f * u, headRect.top - 22f * u, cx + 58f * u, headRect.top - 4f * u, band)
                 }
             }
-            ActorRole.HERO -> {
+            role == ActorRole.HERO -> {
                 val hairPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.hair }
                 val spikes = Path().apply {
                     moveTo(headRect.left + 8f * u, headRect.top + 38f * u)
@@ -2307,13 +2733,12 @@ object ProceduralPuppetEngine {
                 canvas.drawPath(spikes, hairPaint)
                 if (!silhouetteOnly && strokeW > 0f) canvas.drawPath(spikes, outlinePaint)
             }
-            ActorRole.NARRATOR, ActorRole.POOR_MAN -> {
+            role != ActorRole.CHICKEN_MENTOR -> {
                 val hairPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pal.hair }
                 val arcRect = RectF(headRect.left - 4f * u, headRect.top - 10f * u, headRect.right + 4f * u, headRect.top + 56f * u)
                 canvas.drawArc(arcRect, 180f, 180f, true, hairPaint)
                 if (!silhouetteOnly && strokeW > 0f) canvas.drawArc(arcRect, 180f, 180f, false, outlinePaint)
             }
-            ActorRole.CHICKEN_MENTOR -> Unit
         }
     }
 
@@ -2387,10 +2812,13 @@ object ProceduralPuppetEngine {
         canvas.drawLine(rEx, rEy, rx, ry, inkPaint)
 
         if (pose.handProp != HandProp.NONE) {
+            canvas.save()
+            canvas.translate(rx, ry)
+            canvas.rotate(pose.rightHandTiltDeg * pose.facingDir)
             PuppetPropRenderer.drawHandProp(
                 canvas = canvas,
-                handX = rx,
-                handY = ry,
+                handX = 0f,
+                handY = 0f,
                 u = u,
                 prop = pose.handProp,
                 globalTimeSec = globalTimeSec,
@@ -2398,6 +2826,7 @@ object ProceduralPuppetEngine {
                 outlinePaint = inkPaint,
                 facingDir = pose.facingDir
             )
+            canvas.restore()
         }
 
         val headFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFAF6EE.toInt() }

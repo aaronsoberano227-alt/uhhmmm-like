@@ -25,20 +25,30 @@ object MetaphorVisualRenderer {
     fun resolveMetaphorVisual(scene: SceneScript, style: AnimationStyle): MetaphorVisual {
         if (scene.metaphorVisual != MetaphorVisual.NONE) return scene.metaphorVisual
         if (style != AnimationStyle.VIRAL_2D_EXPLAINER) return MetaphorVisual.NONE
-        return when ((scene.sceneId - 1).coerceAtLeast(0) % 5) {
-            0 -> MetaphorVisual.SUNBURST_SPOTLIGHT
-            1 -> MetaphorVisual.CHOMP_CHAIN
-            2 -> MetaphorVisual.TISSUE_CROSS_SECTION
-            3 -> MetaphorVisual.BOILING_POT_PROCESS
-            else -> MetaphorVisual.TIME_LAPSE_CLOCK
+        val text = "${scene.tagalogNarration} ${scene.topicPillLabel} ${scene.calloutBanner}".lowercase()
+        when {
+            text.contains("itlog") || text.contains("egg") || text.contains("sisiw") || text.contains("chick") || text.contains("basag") ->
+                return MetaphorVisual.CRACKING_EGG_CHICK
+            text.contains("money tree") || text.contains("puno ng pera") || text.contains("tanim") || text.contains("bunga") ->
+                return MetaphorVisual.GROWING_MONEY_TREE
+            text.contains("utak") || text.contains("doomscroll") || text.contains("lowbat") || text.contains("baterya") || text.contains("battery") ->
+                return MetaphorVisual.BRAIN_BATTERY_DRAIN
+            text.contains("kumpara") || text.contains("timbang") || text.contains("balance") || text.contains(" vs ") ->
+                return MetaphorVisual.SCALE_BALANCE_COMPARE
+            text.contains("rule of 72") || text.contains("rocket") || text.contains("chart") || text.contains("compound") || text.contains("₱100,000") ->
+                return MetaphorVisual.ROCKET_GROWTH_CHART
+            text.contains("sikreto") || text.contains("secret") || text.contains("susi") || text.contains("unlock") ->
+                return MetaphorVisual.LOCK_AND_KEY_SECRET
+            text.contains("shield") || text.contains("protekta") || text.contains("emergency fund") || text.contains("panangga") ->
+                return MetaphorVisual.SHIELD_BLOCKING_ARROWS
+            text.contains("domino") || text.contains("sunod-sunod") || text.contains("chain reaction") ->
+                return MetaphorVisual.DOMINO_CHAIN_REACTION
         }
+        return MetaphorVisual.NONE
     }
 
     fun isDiagramAlongsideCharacter(metaphor: MetaphorVisual): Boolean {
-        return metaphor == MetaphorVisual.CHOMP_CHAIN ||
-            metaphor == MetaphorVisual.TISSUE_CROSS_SECTION ||
-            metaphor == MetaphorVisual.TIME_LAPSE_CLOCK ||
-            metaphor == MetaphorVisual.BOILING_POT_PROCESS
+        return metaphor != MetaphorVisual.NONE && metaphor != MetaphorVisual.SUNBURST_SPOTLIGHT
     }
 
     /**
@@ -149,6 +159,14 @@ object MetaphorVisualRenderer {
             MetaphorVisual.TISSUE_CROSS_SECTION -> drawTissueCrossSection(canvas, cardRect, u, sceneElapsedSec, sceneDurationSec, globalTimeSec, frameStroke)
             MetaphorVisual.TIME_LAPSE_CLOCK -> drawTimeLapseClock(canvas, cardRect, u, sceneElapsedSec, globalTimeSec, frameStroke)
             MetaphorVisual.BOILING_POT_PROCESS -> drawBoilingPotProcess(canvas, cardRect, u, globalTimeSec, frameStroke)
+            MetaphorVisual.CRACKING_EGG_CHICK -> drawCrackingEggChick(canvas, cardRect, u, sceneElapsedSec, globalTimeSec, frameStroke)
+            MetaphorVisual.GROWING_MONEY_TREE -> drawGrowingMoneyTree(canvas, cardRect, u, sceneElapsedSec, globalTimeSec, frameStroke)
+            MetaphorVisual.BRAIN_BATTERY_DRAIN -> drawBrainBatteryDrain(canvas, cardRect, u, scene, sceneElapsedSec, globalTimeSec, frameStroke)
+            MetaphorVisual.SCALE_BALANCE_COMPARE -> drawScaleBalanceCompare(canvas, cardRect, u, globalTimeSec, frameStroke)
+            MetaphorVisual.ROCKET_GROWTH_CHART -> drawRocketGrowthChart(canvas, cardRect, u, sceneElapsedSec, globalTimeSec, frameStroke)
+            MetaphorVisual.LOCK_AND_KEY_SECRET -> drawLockAndKeySecret(canvas, cardRect, u, sceneElapsedSec, globalTimeSec, frameStroke)
+            MetaphorVisual.SHIELD_BLOCKING_ARROWS -> drawShieldBlockingArrows(canvas, cardRect, u, globalTimeSec, frameStroke)
+            MetaphorVisual.DOMINO_CHAIN_REACTION -> drawDominoChainReaction(canvas, cardRect, u, sceneElapsedSec, frameStroke)
             MetaphorVisual.SUNBURST_SPOTLIGHT, MetaphorVisual.NONE -> Unit
         }
 
@@ -164,12 +182,17 @@ object MetaphorVisualRenderer {
         globalTimeSec: Float,
         outline: Paint
     ) {
+        val text = "${scene.tagalogNarration} ${scene.topicPillLabel} ${scene.calloutBanner}"
         val label = when {
-            scene.tagalogNarration.contains("pera", ignoreCase = true) ||
-                scene.tagalogNarration.contains("ipon", ignoreCase = true) -> "MONEY CHAIN"
-            scene.tagalogNarration.contains("data", ignoreCase = true) ||
-                scene.tagalogNarration.contains("wifi", ignoreCase = true) -> "DATA CHAIN"
-            else -> "PROTEIN CHAIN"
+            text.contains("pera", ignoreCase = true) ||
+                text.contains("ipon", ignoreCase = true) -> "MONEY CHAIN"
+            text.contains("data", ignoreCase = true) ||
+                text.contains("wifi", ignoreCase = true) -> "DATA CHAIN"
+            text.contains("protein", ignoreCase = true) ||
+                text.contains("amino", ignoreCase = true) ||
+                text.contains("digest", ignoreCase = true) ||
+                text.contains("tiyan", ignoreCase = true) -> "PROTEIN CHAIN"
+            else -> scene.topicPillLabel.trim().uppercase().take(16).ifBlank { "PROCESS CHAIN" }
         }
         drawDiagramHeader(canvas, box, u, label, 0xFF2563EB.toInt())
 
@@ -506,6 +529,435 @@ object MetaphorVisualRenderer {
         val liquidRect = RectF(potRect.left + 10f * u, potTop - 14f * u, potRect.right - 10f * u, potTop + 16f * u)
         canvas.drawOval(liquidRect, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFF59E0B.toInt() })
         canvas.drawOval(liquidRect, outline)
+    }
+
+    private fun drawCrackingEggChick(
+        canvas: Canvas,
+        box: RectF,
+        u: Float,
+        sceneElapsedSec: Float,
+        globalTimeSec: Float,
+        outline: Paint
+    ) {
+        drawDiagramHeader(canvas, box, u, "BREAKTHROUGH", 0xFFF59E0B.toInt())
+        val cx = box.centerX()
+        val cy = box.centerY() + 36f * u
+        val hatch = ((sceneElapsedSec / 2.2f) % 1.15f).coerceIn(0f, 1f)
+        val wobble = if (hatch < 0.45f) sin(globalTimeSec * 16f) * 6f else 0f
+
+        canvas.save()
+        canvas.rotate(wobble, cx, cy + 50f * u)
+
+        // Emerging yellow chick when hatch > 0.45
+        if (hatch > 0.40f) {
+            val pop = Easing.easeOutBack(((hatch - 0.40f) / 0.45f).coerceIn(0f, 1f))
+            val chickY = cy - 18f * u - pop * 48f * u
+            canvas.drawCircle(cx, chickY, 44f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFACC15.toInt() })
+            canvas.drawCircle(cx, chickY, 44f * u, outline)
+            val eyeP = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK }
+            canvas.drawCircle(cx - 15f * u, chickY - 8f * u, 6f * u, eyeP)
+            canvas.drawCircle(cx + 15f * u, chickY - 8f * u, 6f * u, eyeP)
+            val beak = Path().apply {
+                moveTo(cx - 10f * u, chickY + 4f * u)
+                lineTo(cx + 10f * u, chickY + 4f * u)
+                lineTo(cx, chickY + 18f * u)
+                close()
+            }
+            canvas.drawPath(beak, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFEA580C.toInt() })
+        }
+
+        // Bottom half of egg shell with jagged zig-zag crack rim
+        val shellRect = RectF(cx - 72f * u, cy - 84f * u, cx + 72f * u, cy + 92f * u)
+        val botShell = Path().apply {
+            arcTo(shellRect, 0f, 180f, true)
+            lineTo(cx - 46f * u, cy - 8f * u)
+            lineTo(cx - 18f * u, cy + 12f * u)
+            lineTo(cx + 8f * u, cy - 10f * u)
+            lineTo(cx + 38f * u, cy + 12f * u)
+            close()
+        }
+        canvas.drawPath(botShell, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFF8E7.toInt() })
+        canvas.drawPath(botShell, outline)
+
+        // Top shell cap lifting & tilting
+        val lift = if (hatch > 0.35f) ((hatch - 0.35f) / 0.65f) * 58f * u else 0f
+        canvas.save()
+        canvas.translate(lift * 0.35f, -lift)
+        canvas.rotate(lift * 0.35f, cx, cy - 20f * u)
+        val topShell = Path().apply {
+            arcTo(shellRect, 180f, 180f, true)
+            lineTo(cx + 38f * u, cy + 12f * u)
+            lineTo(cx + 8f * u, cy - 10f * u)
+            lineTo(cx - 18f * u, cy + 12f * u)
+            lineTo(cx - 46f * u, cy - 8f * u)
+            close()
+        }
+        canvas.drawPath(topShell, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFF8E7.toInt() })
+        canvas.drawPath(topShell, outline)
+        canvas.restore()
+        canvas.restore()
+    }
+
+    private fun drawGrowingMoneyTree(
+        canvas: Canvas,
+        box: RectF,
+        u: Float,
+        sceneElapsedSec: Float,
+        globalTimeSec: Float,
+        outline: Paint
+    ) {
+        drawDiagramHeader(canvas, box, u, "COMPOUND TREE", 0xFF16A34A.toInt())
+        val cx = box.centerX()
+        val groundY = box.bottom - 38f * u
+        val grow = Easing.smoothstep((sceneElapsedSec / 1.4f).coerceIn(0.25f, 1f))
+
+        // Ground pot/soil mound
+        canvas.drawOval(
+            RectF(cx - 95f * u, groundY - 14f * u, cx + 95f * u, groundY + 18f * u),
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF78350F.toInt() }
+        )
+
+        // Trunk + branches
+        val trunkTop = groundY - 170f * u * grow
+        val trunk = Path().apply {
+            moveTo(cx - 22f * u, groundY)
+            quadTo(cx - 12f * u, (groundY + trunkTop) * 0.5f, cx - 10f * u, trunkTop)
+            lineTo(cx + 10f * u, trunkTop)
+            quadTo(cx + 12f * u, (groundY + trunkTop) * 0.5f, cx + 22f * u, groundY)
+            close()
+        }
+        canvas.drawPath(trunk, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF92400E.toInt() })
+        canvas.drawPath(trunk, outline)
+
+        // Lush green foliage clusters
+        val leafPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF22C55E.toInt() }
+        val canopySpots = listOf(
+            Triple(cx - 64f * u, trunkTop + 18f * u, 52f * u * grow),
+            Triple(cx + 64f * u, trunkTop + 18f * u, 52f * u * grow),
+            Triple(cx, trunkTop - 22f * u, 64f * u * grow)
+        )
+        canopySpots.forEach { (lx, ly, lr) ->
+            canvas.drawCircle(lx, ly, lr, leafPaint)
+            canvas.drawCircle(lx, ly, lr, outline)
+        }
+
+        // Blooming gold Peso coins
+        val coinPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFACC15.toInt() }
+        val pesoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF92400E.toInt()
+            textSize = 24f * u
+            textAlign = Paint.Align.CENTER
+            isFakeBoldText = true
+        }
+        val coins = listOf(
+            cx - 72f * u to trunkTop + 16f * u,
+            cx + 70f * u to trunkTop + 12f * u,
+            cx to trunkTop - 32f * u,
+            cx - 28f * u to trunkTop + 34f * u,
+            cx + 30f * u to trunkTop + 38f * u
+        )
+        coins.forEachIndexed { idx, (px, py) ->
+            val bob = sin(globalTimeSec * 3.5f + idx) * 4f * u
+            val r = 20f * u * grow
+            canvas.drawCircle(px, py + bob, r, coinPaint)
+            canvas.drawCircle(px, py + bob, r, Paint(outline).apply { strokeWidth = 3f * u })
+            canvas.drawText("₱", px, py + bob + 8f * u, pesoPaint)
+        }
+    }
+
+    private fun drawBrainBatteryDrain(
+        canvas: Canvas,
+        box: RectF,
+        u: Float,
+        scene: SceneScript,
+        sceneElapsedSec: Float,
+        globalTimeSec: Float,
+        outline: Paint
+    ) {
+        val isCharging = scene.statusPill == StatusPill.FIX || scene.statusPill == StatusPill.GOAL
+        drawDiagramHeader(
+            canvas, box, u,
+            if (isCharging) "BRAIN RECHARGE" else "ENERGY DRAIN",
+            if (isCharging) 0xFF16A34A.toInt() else 0xFFDC2626.toInt()
+        )
+        val cy = box.centerY() + 30f * u
+        val brainX = box.left + box.width() * 0.28f
+        val batX = box.left + box.width() * 0.72f
+
+        // Pink cartoon brain blob
+        val brainP = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFF472B6.toInt() }
+        canvas.drawCircle(brainX - 24f * u, cy, 42f * u, brainP)
+        canvas.drawCircle(brainX + 24f * u, cy, 42f * u, brainP)
+        canvas.drawCircle(brainX, cy - 22f * u, 44f * u, brainP)
+        canvas.drawCircle(brainX - 24f * u, cy, 42f * u, outline)
+        canvas.drawCircle(brainX + 24f * u, cy, 42f * u, outline)
+
+        // Pulsing energy wire connecting brain -> battery
+        val wirePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (isCharging) 0xFF4ADE80.toInt() else 0xFFFACC15.toInt()
+            setStyle(Paint.Style.STROKE)
+            strokeWidth = 7f * u
+            strokeCap = Paint.Cap.ROUND
+        }
+        val wire = Path().apply {
+            moveTo(brainX + 58f * u, cy)
+            lineTo(brainX + 86f * u, cy - 18f * u)
+            lineTo(batX - 78f * u, cy + 16f * u)
+            lineTo(batX - 54f * u, cy)
+        }
+        canvas.drawPath(wire, wirePaint)
+
+        // Battery housing
+        val batW = 88f * u
+        val batH = 148f * u
+        val batRect = RectF(batX - batW * 0.5f, cy - batH * 0.5f, batX + batW * 0.5f, cy + batH * 0.5f)
+        canvas.drawRoundRect(
+            RectF(batX - 22f * u, batRect.top - 16f * u, batX + 22f * u, batRect.top + 4f * u),
+            6f * u, 6f * u,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF64748B.toInt() }
+        )
+        canvas.drawRoundRect(batRect, 14f * u, 14f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF0F172A.toInt() })
+
+        val cycle = (sceneElapsedSec / 2.0f).coerceIn(0f, 1f)
+        val level = if (isCharging) (0.20f + cycle * 0.78f) else (0.88f - cycle * 0.70f)
+        val fillColor = when {
+            level > 0.55f -> 0xFF22C55E.toInt()
+            level > 0.28f -> 0xFFFACC15.toInt()
+            else -> 0xFFEF4444.toInt()
+        }
+        val innerH = (batH - 18f * u) * level.coerceIn(0.08f, 1f)
+        val barRect = RectF(batRect.left + 9f * u, batRect.bottom - 9f * u - innerH, batRect.right - 9f * u, batRect.bottom - 9f * u)
+        val blinkAlpha = if (!isCharging && level < 0.25f && sin(globalTimeSec * 12f) < 0f) 110 else 255
+        canvas.drawRoundRect(barRect, 8f * u, 8f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = fillColor
+            alpha = blinkAlpha
+        })
+        canvas.drawRoundRect(batRect, 14f * u, 14f * u, outline)
+    }
+
+    private fun drawScaleBalanceCompare(
+        canvas: Canvas,
+        box: RectF,
+        u: Float,
+        globalTimeSec: Float,
+        outline: Paint
+    ) {
+        drawDiagramHeader(canvas, box, u, "SMART CHOICE", 0xFF0284C7.toInt())
+        val cx = box.centerX()
+        val baseY = box.bottom - 42f * u
+        val pivotY = box.centerY() - 6f * u
+
+        // Stand & triangle fulcrum
+        canvas.drawLine(cx, pivotY, cx, baseY, Paint(outline).apply { strokeWidth = 10f * u })
+        canvas.drawRoundRect(
+            RectF(cx - 72f * u, baseY - 12f * u, cx + 72f * u, baseY + 6f * u),
+            8f * u, 8f * u,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF334155.toInt() }
+        )
+
+        val tiltDeg = -14f + sin(globalTimeSec * 2.2f) * 6f
+        val beamHalf = box.width() * 0.34f
+        val rad = Math.toRadians(tiltDeg.toDouble())
+        val lx = cx - cos(rad).toFloat() * beamHalf
+        val ly = pivotY - sin(rad).toFloat() * beamHalf
+        val rx = cx + cos(rad).toFloat() * beamHalf
+        val ry = pivotY + sin(rad).toFloat() * beamHalf
+
+        canvas.drawLine(lx, ly, rx, ry, Paint(outline).apply { strokeWidth = 11f * u })
+        canvas.drawCircle(cx, pivotY, 14f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFACC15.toInt() })
+        canvas.drawCircle(cx, pivotY, 14f * u, outline)
+
+        // Left pan (Green Savings Coin) & Right pan (Red Impulse Tag)
+        val cordP = Paint(outline).apply { strokeWidth = 4f * u }
+        for ((px, py, col, sym) in listOf(
+            Tuple4(lx, ly, 0xFF16A34A.toInt(), "₱"),
+            Tuple4(rx, ry, 0xFFEF4444.toInt(), "!")
+        )) {
+            val panY = py + 76f * u
+            canvas.drawLine(px, py, px - 32f * u, panY, cordP)
+            canvas.drawLine(px, py, px + 32f * u, panY, cordP)
+            canvas.drawArc(RectF(px - 44f * u, panY - 12f * u, px + 44f * u, panY + 26f * u), 0f, 180f, true,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF64748B.toInt() })
+            canvas.drawCircle(px, panY - 22f * u, 26f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = col })
+            canvas.drawCircle(px, panY - 22f * u, 26f * u, Paint(outline).apply { strokeWidth = 3.5f * u })
+            canvas.drawText(sym, px, panY - 13f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.WHITE; textSize = 28f * u; textAlign = Paint.Align.CENTER; isFakeBoldText = true
+            })
+        }
+    }
+
+    private data class Tuple4<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
+
+    private fun drawRocketGrowthChart(
+        canvas: Canvas,
+        box: RectF,
+        u: Float,
+        sceneElapsedSec: Float,
+        globalTimeSec: Float,
+        outline: Paint
+    ) {
+        drawDiagramHeader(canvas, box, u, "EXPONENTIAL GROWTH", 0xFF7C3AED.toInt())
+        val chartL = box.left + 52f * u
+        val chartR = box.right - 56f * u
+        val chartT = box.top + 118f * u
+        val chartB = box.bottom - 48f * u
+
+        // Subtle chart grid
+        val gridP = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x3364748B; strokeWidth = 3f * u }
+        for (i in 0..3) {
+            val gy = chartT + (chartB - chartT) * (i / 3f)
+            canvas.drawLine(chartL, gy, chartR, gy, gridP)
+        }
+        canvas.drawLine(chartL, chartT, chartL, chartB, Paint(outline).apply { strokeWidth = 5f * u })
+        canvas.drawLine(chartL, chartB, chartR, chartB, Paint(outline).apply { strokeWidth = 5f * u })
+
+        // Rising exponential curve + rocket at tip
+        val prog = Easing.smoothstep((sceneElapsedSec / 1.5f).coerceIn(0.15f, 1f))
+        val tipX = chartL + (chartR - chartL) * prog
+        val tipY = chartB - (chartB - chartT) * (prog * prog)
+
+        val curve = Path().apply {
+            moveTo(chartL, chartB)
+            quadTo(chartL + (tipX - chartL) * 0.65f, chartB - (chartB - tipY) * 0.12f, tipX, tipY)
+        }
+        canvas.drawPath(curve, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF10B981.toInt(); setStyle(Paint.Style.STROKE); strokeWidth = 11f * u; strokeCap = Paint.Cap.ROUND
+        })
+
+        // Animated rocket riding curve tip
+        canvas.save()
+        canvas.translate(tipX, tipY)
+        canvas.rotate(42f)
+        val flicker = 1f + 0.25f * sin(globalTimeSec * 18f)
+        canvas.drawOval(RectF(-10f * u, 16f * u, 10f * u, (42f * flicker) * u),
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFF97316.toInt() })
+        val body = Path().apply {
+            moveTo(0f, -34f * u)
+            lineTo(18f * u, 18f * u)
+            lineTo(-18f * u, 18f * u)
+            close()
+        }
+        canvas.drawPath(body, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF38BDF8.toInt() })
+        canvas.drawPath(body, Paint(outline).apply { strokeWidth = 3.5f * u })
+        canvas.restore()
+    }
+
+    private fun drawLockAndKeySecret(
+        canvas: Canvas,
+        box: RectF,
+        u: Float,
+        sceneElapsedSec: Float,
+        globalTimeSec: Float,
+        outline: Paint
+    ) {
+        drawDiagramHeader(canvas, box, u, "HIDDEN SECRET", 0xFFD97706.toInt())
+        val cx = box.centerX()
+        val cy = box.centerY() + 42f * u
+        val unlock = Easing.smoothstep(((sceneElapsedSec - 0.35f) / 0.85f).coerceIn(0f, 1f))
+        val shackleLift = unlock * 28f * u
+
+        // Padlock shackle rising as it unlocks
+        val shackleP = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF94A3B8.toInt()
+            setStyle(Paint.Style.STROKE)
+            strokeWidth = 18f * u
+            strokeCap = Paint.Cap.ROUND
+        }
+        canvas.drawArc(
+            RectF(cx - 48f * u, cy - 118f * u - shackleLift, cx + 48f * u, cy - 16f * u - shackleLift),
+            180f, 180f, false, shackleP
+        )
+
+        // Gold padlock body
+        val lockRect = RectF(cx - 68f * u, cy - 42f * u, cx + 68f * u, cy + 78f * u)
+        canvas.drawRoundRect(lockRect, 18f * u, 18f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFACC15.toInt() })
+        canvas.drawRoundRect(lockRect, 18f * u, 18f * u, outline)
+        canvas.drawCircle(cx, cy + 12f * u, 14f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF0F172A.toInt() })
+        canvas.drawRoundRect(RectF(cx - 6f * u, cy + 16f * u, cx + 6f * u, cy + 44f * u), 4f * u, 4f * u,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF0F172A.toInt() })
+
+        // Turning golden key sliding into center
+        val keyShift = (1f - unlock) * 52f * u + sin(globalTimeSec * 4f) * 3f * u
+        val kx = cx + 78f * u + keyShift
+        val ky = cy + 16f * u
+        val keyP = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF38BDF8.toInt() }
+        canvas.drawCircle(kx + 28f * u, ky, 18f * u, keyP)
+        canvas.drawCircle(kx + 28f * u, ky, 18f * u, Paint(outline).apply { strokeWidth = 3.5f * u })
+        canvas.drawRoundRect(RectF(kx - 36f * u, ky - 6f * u, kx + 14f * u, ky + 6f * u), 4f * u, 4f * u, keyP)
+    }
+
+    private fun drawShieldBlockingArrows(
+        canvas: Canvas,
+        box: RectF,
+        u: Float,
+        globalTimeSec: Float,
+        outline: Paint
+    ) {
+        drawDiagramHeader(canvas, box, u, "PROTECTION", 0xFF0284C7.toInt())
+        val cx = box.centerX() - 26f * u
+        val cy = box.centerY() + 34f * u
+
+        // Shield body
+        val shield = Path().apply {
+            moveTo(cx, cy - 88f * u)
+            lineTo(cx + 76f * u, cy - 60f * u)
+            quadTo(cx + 70f * u, cy + 48f * u, cx, cy + 92f * u)
+            quadTo(cx - 70f * u, cy + 48f * u, cx - 76f * u, cy - 60f * u)
+            close()
+        }
+        canvas.drawPath(shield, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF0EA5E9.toInt() })
+        canvas.drawPath(shield, outline)
+        canvas.drawCircle(cx, cy, 24f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFBAE6FD.toInt() })
+
+        // Incoming red arrows bouncing off shield edge
+        val arrowP = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFEF4444.toInt(); strokeWidth = 8f * u; strokeCap = Paint.Cap.ROUND }
+        for (i in -1..1) {
+            val cycle = (globalTimeSec * 1.4f + (i + 1) * 0.3f) % 1f
+            val ay = cy + i * 44f * u
+            val ax = box.right - 22f * u - cycle * (box.right - cx - 86f * u)
+            canvas.drawLine(ax, ay, ax + 48f * u, ay, arrowP)
+            val tip = Path().apply {
+                moveTo(ax - 10f * u, ay)
+                lineTo(ax + 10f * u, ay - 12f * u)
+                lineTo(ax + 10f * u, ay + 12f * u)
+                close()
+            }
+            canvas.drawPath(tip, arrowP)
+        }
+    }
+
+    private fun drawDominoChainReaction(
+        canvas: Canvas,
+        box: RectF,
+        u: Float,
+        sceneElapsedSec: Float,
+        outline: Paint
+    ) {
+        drawDiagramHeader(canvas, box, u, "CHAIN REACTION", 0xFF9333EA.toInt())
+        val groundY = box.bottom - 48f * u
+        val count = 5
+        val spacing = (box.width() - 120f * u) / (count - 1)
+        val startX = box.left + 64f * u
+        val wave = (sceneElapsedSec * 1.3f) % 2.4f
+
+        val domColors = intArrayOf(0xFFEF4444.toInt(), 0xFFF59E0B.toInt(), 0xFF10B981.toInt(), 0xFF3B82F6.toInt(), 0xFFA855F7.toInt())
+        canvas.drawLine(box.left + 28f * u, groundY, box.right - 28f * u, groundY, Paint(outline).apply { strokeWidth = 5f * u })
+
+        for (i in 0 until count) {
+            val dx = startX + i * spacing
+            val trigger = (wave - i * 0.30f).coerceIn(0f, 1f)
+            val maxAngle = if (i == count - 1) 68f else 56f
+            val angle = Easing.smoothstep(trigger) * maxAngle
+
+            canvas.save()
+            canvas.rotate(angle, dx, groundY)
+            val rect = RectF(dx - 16f * u, groundY - 124f * u, dx + 16f * u, groundY)
+            canvas.drawRoundRect(rect, 6f * u, 6f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = domColors[i] })
+            canvas.drawRoundRect(rect, 6f * u, 6f * u, outline)
+            canvas.drawCircle(dx, groundY - 94f * u, 6f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
+            canvas.drawCircle(dx, groundY - 30f * u, 6f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
+            canvas.restore()
+        }
     }
 
     private fun drawDiagramHeader(

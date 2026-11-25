@@ -68,28 +68,28 @@ enum class AnimationStyle(
     CROSS_SECTION(
         displayName = "2D Cutaway & Engineering Diagram",
         badge = "CUTAWAY 2D",
-        subtitle = "Kurzgesagt soil/house layers, pipes, fans & PathMeasure energy flow",
+        subtitle = "Layered 2D cutaways, animated flow paths & dynamic vector art",
         accentHex = 0xFF22D3EE,
-        backdropPromptSuffix = "flat 2D architectural cross-section cutaway diagram illustration, Kurzgesagt style clean geometric layers, soil strata, house interior pipes and airflow vents, no text, no people",
-        usesNetworkArt = false,
+        backdropPromptSuffix = "clean 2D Kurzgesagt flat vector cross-section cutaway diagram illustration, bold layered depth, geometric precision, no text, no labels, no watermark",
+        usesNetworkArt = true,
         captionStyleLabel = "Cyan-glow engineering pill"
     ),
     VIRAL_2D_EXPLAINER(
         displayName = "Viral 2D Science & Story Explainer",
         badge = "2D VIRAL",
-        subtitle = "6px bold outlines, cartoon reactions, visual metaphors & yellow captions",
+        subtitle = "6px bold outlines, cartoon reactions, dynamic diagrams & yellow captions",
         accentHex = 0xFFFFD600,
-        backdropPromptSuffix = "vibrant clean 2D animated science story explainer backdrop, crisp geometric shapes, bright studio lighting, no text, no people, empty stage, centered composition",
+        backdropPromptSuffix = "vibrant clean 2D animated story explainer backdrop, crisp geometric shapes, bright studio lighting, no text, no people, empty stage, centered composition",
         usesNetworkArt = false,
         captionStyleLabel = "Thick black-outlined yellow/white captions"
     ),
     PIXEL_CUTAWAY_EXPLAINER(
         displayName = "16-Bit Pixel Cutaway Explainer",
         badge = "16-BIT PIXEL",
-        subtitle = "270x480 crisp nearest-neighbor cutaway layers, fibrin strands & pointer labels",
+        subtitle = "270x480 crisp nearest-neighbor pixel cutaways, animated particles & callouts",
         accentHex = 0xFF4ADE80,
-        backdropPromptSuffix = "",
-        usesNetworkArt = false,
+        backdropPromptSuffix = "16-bit retro pixel art scientific cross-section cutaway diagram illustration, crisp geometric pixel clusters, rich contrast, no text, no labels, no watermark",
+        usesNetworkArt = true,
         captionStyleLabel = "Crisp pixel-framed retro dialog captions"
     );
 

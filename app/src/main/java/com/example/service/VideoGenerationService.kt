@@ -234,6 +234,7 @@ class VideoGenerationService : Service() {
                     previousText = scenes.getOrNull(idx - 1)?.tagalogNarration,
                     nextText = scenes.getOrNull(idx + 1)?.tagalogNarration,
                     ttsBaseUrl = settings.effectiveTtsBaseUrl,
+                    narrationSpeed = settings.narrationSpeed,
                     onKeyStatusUpdate = { updatedKey ->
                         settingsStore.updateElevenLabsKeyEntry(updatedKey)
                     }
@@ -266,7 +267,8 @@ class VideoGenerationService : Service() {
                 narrationPerScene = scenes.map { it.tagalogNarration },
                 scenes = scenes,
                 style = style,
-                customBgmPcm44100Mono = customBgmPcm
+                customBgmPcm44100Mono = customBgmPcm,
+                targetDurationMs = durationSec * 1000.0
             )
             pcmPerScene.clear() // release per-scene chunks immediately; keep unified buffer
 

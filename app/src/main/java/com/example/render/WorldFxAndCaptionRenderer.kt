@@ -33,10 +33,7 @@ object WorldFxAndCaptionRenderer {
             WorldFx.NONE -> Unit
             WorldFx.COIN_RAIN -> drawCoinRain(canvas, w, h, u, globalTimeSec)
             WorldFx.FIRE_SPARKS -> drawFireSparks(canvas, w, h, u, globalTimeSec)
-            WorldFx.GIANT_HAND_GRAB -> drawGiantHandGrab(canvas, w, h, u, sceneElapsedSec)
-            WorldFx.FLOATING_HOUSES -> drawFloatingHouses(canvas, w, h, u, sceneElapsedSec, globalTimeSec)
             WorldFx.CHALKBOARD_DRAW -> drawChalkboardDiagram(canvas, w, h, u, style, sceneElapsedSec)
-            WorldFx.EGG_CRACK -> drawEggCrack(canvas, w, h, u, sceneElapsedSec)
         }
     }
 
@@ -48,47 +45,26 @@ object WorldFxAndCaptionRenderer {
         globalTimeSec: Float
     ) {
         val u = w / 1080f
-        when (style) {
-            AnimationStyle.DARK_SUSPENSE -> {
-                // Procedural dark vignette
-                val vigPaint = Paint().apply {
-                    shader = RadialGradient(
-                        w * 0.5f, h * 0.45f, h * 0.62f,
-                        intArrayOf(0x00000000, 0xCC050509.toInt()),
-                        floatArrayOf(0.45f, 1f),
-                        Shader.TileMode.CLAMP
-                    )
-                }
-                canvas.drawRect(0f, 0f, w, h, vigPaint)
-
-                // Animated film grain overlay
-                val rng = Random((globalTimeSec * 24f).toInt())
-                val grainPaint = Paint().apply { color = 0x1EFFFFFF }
-                for (i in 0 until 140) {
-                    val gx = rng.nextFloat() * w
-                    val gy = rng.nextFloat() * h
-                    canvas.drawRect(gx, gy, gx + 3f * u, gy + 3f * u, grainPaint)
-                }
-            }
-            AnimationStyle.FLAT_VECTOR, AnimationStyle.TECH_EXPLAINER, AnimationStyle.CROSS_SECTION -> {
-                // Floating subtle infographic accents (no cluttered grid lines)
-                val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = when (style) {
-                        AnimationStyle.TECH_EXPLAINER -> 0x4400E5FF
-                        AnimationStyle.CROSS_SECTION -> 0x4822D3EE
-                        else -> 0x332DD4BF
-                    }
-                    setStyle(Paint.Style.STROKE)
-                    strokeWidth = 5f * u
-                }
-                val yFloat = sin(globalTimeSec * 2.5f) * 16f * u
-                canvas.drawCircle(w * 0.14f, h * 0.25f + yFloat, 28f * u, p)
-                canvas.drawRoundRect(
-                    RectF(w * 0.80f, h * 0.22f - yFloat, w * 0.88f, h * 0.26f - yFloat),
-                    10f * u, 10f * u, p
+        if (style == AnimationStyle.DARK_SUSPENSE) {
+            // Procedural dark vignette
+            val vigPaint = Paint().apply {
+                shader = RadialGradient(
+                    w * 0.5f, h * 0.45f, h * 0.62f,
+                    intArrayOf(0x00000000, 0xCC050509.toInt()),
+                    floatArrayOf(0.45f, 1f),
+                    Shader.TileMode.CLAMP
                 )
             }
-            else -> Unit
+            canvas.drawRect(0f, 0f, w, h, vigPaint)
+
+            // Animated film grain overlay
+            val rng = Random((globalTimeSec * 24f).toInt())
+            val grainPaint = Paint().apply { color = 0x1EFFFFFF }
+            for (i in 0 until 140) {
+                val gx = rng.nextFloat() * w
+                val gy = rng.nextFloat() * h
+                canvas.drawRect(gx, gy, gx + 3f * u, gy + 3f * u, grainPaint)
+            }
         }
     }
 
@@ -371,74 +347,6 @@ object WorldFxAndCaptionRenderer {
         }
     }
 
-    private fun drawGiantHandGrab(canvas: Canvas, w: Float, h: Float, u: Float, sceneElapsedSec: Float) {
-        val t = Easing.easeOutBack((sceneElapsedSec / 1.1f).coerceIn(0f, 1f))
-        val handY = -280f * u + t * (h * 0.36f)
-        val cx = w * 0.5f
-
-        val armPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFE5B28A.toInt() }
-        val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0xFF111827.toInt()
-            setStyle(Paint.Style.STROKE)
-            strokeWidth = 8f * u
-        }
-
-        // Forearm descending from top of frame
-        val armRect = RectF(cx - 72f * u, -40f * u, cx + 72f * u, handY)
-        canvas.drawRect(armRect, armPaint)
-        canvas.drawRect(armRect, stroke)
-
-        // Palm & fingers
-        val palm = RectF(cx - 125f * u, handY - 20f * u, cx + 125f * u, handY + 130f * u)
-        canvas.drawRoundRect(palm, 48f * u, 48f * u, armPaint)
-        canvas.drawRoundRect(palm, 48f * u, 48f * u, stroke)
-
-        for (i in -1..2) {
-            val fx = cx + (i * 54f - 26f) * u
-            val finger = RectF(fx - 20f * u, handY + 95f * u, fx + 20f * u, handY + 195f * u)
-            canvas.drawRoundRect(finger, 18f * u, 18f * u, armPaint)
-            canvas.drawRoundRect(finger, 18f * u, 18f * u, stroke)
-        }
-    }
-
-    private fun drawFloatingHouses(
-        canvas: Canvas,
-        w: Float,
-        h: Float,
-        u: Float,
-        sceneElapsedSec: Float,
-        globalTimeSec: Float
-    ) {
-        val housePositions = listOf(0.22f, 0.78f)
-        housePositions.forEachIndexed { idx, xRatio ->
-            val rise = ((sceneElapsedSec * 90f + idx * 140f) % (h * 0.45f))
-            val hx = w * xRatio + sin(globalTimeSec * 2.4f + idx) * 18f * u
-            val hy = h * 0.56f - rise
-            val size = 86f * u
-
-            val body = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFDE68A.toInt() }
-            val roof = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFF5E36.toInt() }
-            val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = 0xFF1E293B.toInt()
-                setStyle(Paint.Style.STROKE)
-                strokeWidth = 5f * u
-            }
-
-            val box = RectF(hx - size * 0.5f, hy, hx + size * 0.5f, hy + size * 0.6f)
-            canvas.drawRect(box, body)
-            canvas.drawRect(box, stroke)
-
-            val roofPath = Path().apply {
-                moveTo(hx, hy - size * 0.45f)
-                lineTo(hx - size * 0.65f, hy)
-                lineTo(hx + size * 0.65f, hy)
-                close()
-            }
-            canvas.drawPath(roofPath, roof)
-            canvas.drawPath(roofPath, stroke)
-        }
-    }
-
     private fun drawChalkboardDiagram(
         canvas: Canvas,
         w: Float,
@@ -494,42 +402,5 @@ object WorldFxAndCaptionRenderer {
             strokeJoin = Paint.Join.ROUND
         }
         canvas.drawPath(partial, linePaint)
-    }
-
-    private fun drawEggCrack(canvas: Canvas, w: Float, h: Float, u: Float, sceneElapsedSec: Float) {
-        val cx = w * 0.76f
-        val cy = h * 0.58f
-        val split = Easing.easeOutBack(((sceneElapsedSec - 0.5f) / 0.8f).coerceIn(0f, 1f))
-
-        val eggPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFF8E7.toInt() }
-        val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0xFF1F2937.toInt()
-            setStyle(Paint.Style.STROKE)
-            strokeWidth = 6f * u
-        }
-
-        // Peeking yellow chick inside
-        if (split > 0.1f) {
-            val chickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFD166.toInt() }
-            val chickY = cy - split * 38f * u
-            canvas.drawCircle(cx, chickY, 44f * u, chickPaint)
-            canvas.drawCircle(cx, chickY, 44f * u, stroke)
-            val eye = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK }
-            canvas.drawCircle(cx - 14f * u, chickY - 6f * u, 6f * u, eye)
-            canvas.drawCircle(cx + 14f * u, chickY - 6f * u, 6f * u, eye)
-        }
-
-        // Bottom shell
-        val bottomShell = RectF(cx - 64f * u, cy - 30f * u, cx + 64f * u, cy + 78f * u)
-        canvas.drawArc(bottomShell, 0f, 180f, true, eggPaint)
-        canvas.drawArc(bottomShell, 0f, 180f, true, stroke)
-
-        // Top shell tilting open
-        canvas.save()
-        canvas.rotate(-split * 36f, cx - 55f * u, cy)
-        val topShell = RectF(cx - 60f * u, cy - 92f * u, cx + 60f * u, cy + 20f * u)
-        canvas.drawArc(topShell, 180f, 180f, true, eggPaint)
-        canvas.drawArc(topShell, 180f, 180f, true, stroke)
-        canvas.restore()
     }
 }

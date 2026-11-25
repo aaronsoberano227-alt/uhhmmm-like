@@ -1,5 +1,6 @@
 package com.example.render
 
+import android.graphics.Bitmap
 import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
@@ -8,8 +9,11 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PathMeasure
 import android.graphics.RadialGradient
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
+import android.graphics.Typeface
+import com.example.model.FlowDirection
 import com.example.model.SceneScript
 import kotlin.math.PI
 import kotlin.math.cos
@@ -22,6 +26,8 @@ import kotlin.math.sin
  */
 object CrossSectionDiagramRenderer {
 
+    private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+
     fun drawCutaway(
         canvas: Canvas,
         w: Float,
@@ -30,10 +36,45 @@ object CrossSectionDiagramRenderer {
         sceneElapsedSec: Float,
         sceneDurationSec: Float,
         globalTimeSec: Float,
-        hasActiveHud: Boolean
+        hasActiveHud: Boolean,
+        backdropBitmap: Bitmap? = null
     ) {
         val u = w / 1080f
         val groundY = if (hasActiveHud) h * 0.485f else h * 0.56f
+
+        if (backdropBitmap != null && !backdropBitmap.isRecycled) {
+            canvas.drawBitmap(
+                backdropBitmap,
+                Rect(0, 0, backdropBitmap.width, backdropBitmap.height),
+                Rect(0, 0, w.toInt(), h.toInt()),
+                bitmapPaint
+            )
+            // Contrast top/bottom scrims + subtle blueprint cutaway vignette
+            canvas.drawRect(
+                0f, 0f, w, h * 0.25f,
+                Paint().apply {
+                    shader = LinearGradient(
+                        0f, 0f, 0f, h * 0.25f,
+                        intArrayOf(0x99060A14.toInt(), 0x00000000),
+                        null, Shader.TileMode.CLAMP
+                    )
+                }
+            )
+            canvas.drawRect(
+                0f, h * 0.54f, w, h,
+                Paint().apply {
+                    shader = LinearGradient(
+                        0f, h * 0.54f, 0f, h,
+                        intArrayOf(0x00000000, 0xCC060A14.toInt()),
+                        null, Shader.TileMode.CLAMP
+                    )
+                }
+            )
+            val revealProgress = Easing.smoothstep((sceneElapsedSec / 0.9f).coerceIn(0f, 1f))
+            drawDynamicFlowOverlay(canvas, w, h, groundY, scene.flowDirection, revealProgress, globalTimeSec, u)
+            drawCalloutPins(canvas, w, h, scene, sceneElapsedSec, u)
+            return
+        }
 
         // 1. Clean Kurzgesagt twilight-blue/teal engineering sky + warm solar beam cone
         val skyPaint = Paint().apply {
@@ -236,6 +277,116 @@ object CrossSectionDiagramRenderer {
             u = u,
             particleCount = 5
         )
+        drawCalloutPins(canvas, w, h, scene, sceneElapsedSec, u)
+    }
+
+    private fun drawDynamicFlowOverlay(
+        canvas: Canvas,
+        w: Float,
+        h: Float,
+        groundY: Float,
+        flowDirection: FlowDirection,
+        revealFrac: Float,
+        globalTimeSec: Float,
+        u: Float
+    ) {
+        val cx = w * 0.52f
+        val cy = h * 0.40f
+        val paths: List<Pair<Path, Int>> = when (flowDirection) {
+            FlowDirection.UP -> listOf(
+                Path().apply {
+                    moveTo(w * 0.34f, groundY + 120f * u)
+                    quadTo(w * 0.28f, cy, w * 0.38f, h * 0.18f)
+                } to 0xFF38BDF8.toInt(),
+                Path().apply {
+                    moveTo(w * 0.68f, groundY + 120f * u)
+                    quadTo(w * 0.74f, cy, w * 0.64f, h * 0.18f)
+                } to 0xFF4ADE80.toInt()
+            )
+            FlowDirection.DOWN -> listOf(
+                Path().apply {
+                    moveTo(w * 0.36f, h * 0.17f)
+                    quadTo(w * 0.42f, cy, w * 0.34f, groundY + 90f * u)
+                } to 0xFFFACC15.toInt(),
+                Path().apply {
+                    moveTo(w * 0.66f, h * 0.17f)
+                    quadTo(w * 0.60f, cy, w * 0.68f, groundY + 90f * u)
+                } to 0xFF38BDF8.toInt()
+            )
+            FlowDirection.LEFT_TO_RIGHT -> listOf(
+                Path().apply {
+                    moveTo(w * 0.14f, cy - 110f * u)
+                    quadTo(w * 0.50f, cy - 165f * u, w * 0.86f, cy - 105f * u)
+                } to 0xFF38BDF8.toInt(),
+                Path().apply {
+                    moveTo(w * 0.14f, cy + 95f * u)
+                    quadTo(w * 0.50f, cy + 40f * u, w * 0.86f, cy + 100f * u)
+                } to 0xFF2DD4BF.toInt()
+            )
+            FlowDirection.RADIAL_BURST -> listOf(
+                Path().apply { moveTo(cx, cy); lineTo(w * 0.20f, h * 0.20f) } to 0xFFFACC15.toInt(),
+                Path().apply { moveTo(cx, cy); lineTo(w * 0.84f, h * 0.20f) } to 0xFF38BDF8.toInt(),
+                Path().apply { moveTo(cx, cy); lineTo(w * 0.22f, groundY + 40f * u) } to 0xFF4ADE80.toInt(),
+                Path().apply { moveTo(cx, cy); lineTo(w * 0.82f, groundY + 40f * u) } to 0xFFFB7185.toInt()
+            )
+        }
+        paths.forEachIndexed { idx, (p, col) ->
+            drawAnimatedFlowPath(
+                canvas = canvas,
+                path = p,
+                glowColor = col,
+                coreColor = Color.WHITE,
+                revealFrac = revealFrac,
+                globalTimeSec = globalTimeSec,
+                speed = 0.58f + idx * 0.08f,
+                u = u,
+                particleCount = 4
+            )
+        }
+    }
+
+    private fun drawCalloutPins(
+        canvas: Canvas,
+        w: Float,
+        h: Float,
+        scene: SceneScript,
+        sceneElapsedSec: Float,
+        u: Float
+    ) {
+        val callouts = ProceduralPuppetEngine.resolvePointerCallouts(scene)
+        if (callouts.isEmpty()) return
+
+        val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.STROKE
+            strokeWidth = 4f * u
+            strokeCap = Paint.Cap.ROUND
+        }
+        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 26f * u
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+        }
+        callouts.take(2).forEachIndexed { idx, raw ->
+            val anim = Easing.smoothstep(((sceneElapsedSec - idx * 0.25f) / 0.45f).coerceIn(0f, 1f))
+            if (anim <= 0.05f) return@forEachIndexed
+            val (px, py) = PixelCutawayRenderer.normalizeCalloutPoint(raw.x, raw.y)
+            val tx = (px / 270f) * w
+            val ty = (py / 480f) * h
+            val shelfY = (ty - 120f * u).coerceIn(h * 0.14f, h * 0.54f)
+            val label = raw.label.trim().uppercase().take(20)
+            if (label.isEmpty()) return@forEachIndexed
+            val tw = labelPaint.measureText(label) + 34f * u
+            val pill = RectF(tx - tw * 0.5f, shelfY - 26f * u, tx + tw * 0.5f, shelfY + 26f * u)
+
+            canvas.drawLine(tx, ty, tx, shelfY + 26f * u, linePaint)
+            canvas.drawCircle(tx, ty, 10f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF38BDF8.toInt() })
+            canvas.drawRoundRect(pill, 16f * u, 16f * u, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xDD0F172A.toInt() })
+            canvas.drawRoundRect(pill, 16f * u, 16f * u, Paint(linePaint).apply { strokeWidth = 3f * u; color = 0xFF38BDF8.toInt() })
+            val fm = labelPaint.fontMetrics
+            canvas.drawText(label, pill.centerX(), pill.centerY() - (fm.ascent + fm.descent) * 0.5f, labelPaint)
+        }
     }
 
     private fun drawSpinningFan(

@@ -18,6 +18,8 @@ import com.example.model.ActorRole
 import com.example.model.AnimationStyle
 import com.example.model.CameraMotion
 import com.example.model.CutawayStage
+import com.example.model.CutawaySubject
+import com.example.model.EnvironmentTheme
 import com.example.model.GenerationProgress
 import com.example.model.HudWidget
 import com.example.model.ImportedClipItem
@@ -327,7 +329,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             PointerCallout("FIBRIN STRANDS", 135f, 166f),
                             PointerCallout("NEW BLOOD VESSELS", 148f, 218f)
                         )
-                    } else emptyList()
+                    } else emptyList(),
+                    environmentTheme = if (style == AnimationStyle.DARK_SUSPENSE) {
+                        EnvironmentTheme.DRAMATIC_SUNSET_CITY
+                    } else {
+                        EnvironmentTheme.SUNNY_MARKET_STREET
+                    },
+                    cutawaySubject = if (style == AnimationStyle.PIXEL_CUTAWAY_EXPLAINER) {
+                        CutawaySubject.SKIN_WOUND_HEALING
+                    } else null
                 ),
                 startMs = 0.0,
                 endMs = 4200.0,
@@ -802,6 +812,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _resolvedChatBaseUrl.value = ""
     }
 
+    fun setNarrationSpeed(speed: Float) {
+        viewModelScope.launch {
+            settingsStore.setNarrationSpeed(speed)
+        }
+    }
+
     fun saveLlmSettings(
         groqApiKey: String,
         openRouterApiKey: String,
@@ -813,7 +829,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         llmBaseUrl: String = customBaseUrl,
         llmApiKey: String = customApiKey,
         selectedModelId: String = customModel,
-        ttsBaseUrl: String = settings.value.effectiveTtsBaseUrl
+        ttsBaseUrl: String = settings.value.effectiveTtsBaseUrl,
+        narrationSpeed: Float = settings.value.narrationSpeed
     ) {
         viewModelScope.launch {
             val chatBase = _resolvedChatBaseUrl.value.ifBlank {
@@ -833,7 +850,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 llmApiKey = llmApiKey,
                 selectedModelId = selectedModelId,
                 detectedChatBaseUrl = chatBase,
-                ttsBaseUrl = ttsBaseUrl
+                ttsBaseUrl = ttsBaseUrl,
+                narrationSpeed = narrationSpeed
             )
             showMessage("API & Studio settings saved")
         }
